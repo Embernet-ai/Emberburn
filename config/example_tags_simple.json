@@ -1,0 +1,25 @@
+{
+  "Temperature": {
+    "type": "float",
+    "initial_value": 20.0,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 15.0,
+    "max": 25.0,
+    "description": "Simple temperature sensor"
+  },
+  "Counter": {
+    "type": "int",
+    "initial_value": 0,
+    "simulate": true,
+    "simulation_type": "increment",
+    "increment": 1,
+    "description": "Simple counter"
+  },
+  "Status": {
+    "type": "string",
+    "initial_value": "OK",
+    "simulate": false,
+    "description": "Status message"
+  }
+}
