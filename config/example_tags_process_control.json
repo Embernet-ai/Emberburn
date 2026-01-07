@@ -1,0 +1,103 @@
+{
+  "Tank1_Level": {
+    "type": "float",
+    "initial_value": 50.0,
+    "simulate": true,
+    "simulation_type": "sine",
+    "amplitude": 30.0,
+    "offset":  50.0,
+    "period": 120,
+    "description": "Tank 1 level percentage"
+  },
+  "Tank1_Temperature": {
+    "type": "float",
+    "initial_value": 65.0,
+    "simulate":  true,
+    "simulation_type": "random",
+    "min": 60.0,
+    "max":  70.0,
+    "description": "Tank 1 temperature in Celsius"
+  },
+  "Tank1_Pressure": {
+    "type": "float",
+    "initial_value": 2.5,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 2.0,
+    "max":  3.0,
+    "description": "Tank 1 pressure in bar"
+  },
+  "Pump1_Running": {
+    "type": "bool",
+    "initial_value": true,
+    "simulate":  false,
+    "description": "Pump 1 running status"
+  },
+  "Pump1_Speed": {
+    "type": "float",
+    "initial_value": 1450.0,
+    "simulate":  true,
+    "simulation_type": "random",
+    "min": 1400.0,
+    "max":  1500.0,
+    "description": "Pump 1 speed in RPM"
+  },
+  "Pump1_FlowRate": {
+    "type": "float",
+    "initial_value": 250.0,
+    "simulate":  true,
+    "simulation_type": "random",
+    "min": 230.0,
+    "max":  270.0,
+    "description": "Pump 1 flow rate in L/min"
+  },
+  "Valve1_Position": {
+    "type": "float",
+    "initial_value": 50.0,
+    "simulate":  true,
+    "simulation_type": "sine",
+    "amplitude": 25.0,
+    "offset":  50.0,
+    "period": 60,
+    "description": "Control valve position percentage"
+  },
+  "Inlet_Temperature": {
+    "type": "float",
+    "initial_value": 25.0,
+    "simulate":  true,
+    "simulation_type": "random",
+    "min": 20.0,
+    "max":  30.0,
+    "description": "Inlet temperature in Celsius"
+  },
+  "Outlet_Temperature": {
+    "type": "float",
+    "initial_value": 85.0,
+    "simulate":  true,
+    "simulation_type": "random",
+    "min": 80.0,
+    "max":  90.0,
+    "description": "Outlet temperature in Celsius"
+  },
+  "System_Pressure": {
+    "type": "float",
+    "initial_value": 4.5,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 4.0,
+    "max":  5.0,
+    "description": "System pressure in bar"
+  },
+  "Alarm_Status": {
+    "type":  "string",
+    "initial_value": "Normal",
+    "simulate": false,
+    "description": "Current alarm status"
+  },
+  "High_Pressure_Alarm": {
+    "type":  "bool",
+    "initial_value": false,
+    "simulate": true,
+    "description":  "High pressure alarm"
+  }
+}
