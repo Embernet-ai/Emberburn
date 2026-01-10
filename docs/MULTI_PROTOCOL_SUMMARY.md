@@ -2,16 +2,17 @@
 
 ## What We Just Built 🎉
 
-Your OPC UA Server now supports **8 industrial data streaming protocols**:
+Your OPC UA Server now supports **9 industrial data streaming protocols**:
 
-1. ✅ **OPC UA** (original) - SCADA systems
-2. ✅ **MQTT** - IoT and cloud
-3. ✅ **Sparkplug B** - Ignition Edge (native support)
-4. ✅ **Apache Kafka** - Enterprise streaming
-5. ✅ **AMQP (RabbitMQ)** - Enterprise messaging
-6. ✅ **WebSocket** - Real-time web UIs
-7. ✅ **REST API** - HTTP clients
-8. ✅ **MODBUS TCP** - Legacy PLCs and SCADA systems
+1. ✅ **OPC UA Server** (original) - SCADA systems connect to you
+2. ✅ **OPC UA Client** ⭐ NEW - Push to other OPC UA servers
+3. ✅ **MQTT** - IoT and cloud
+4. ✅ **Sparkplug B** - Ignition Edge (native support)
+5. ✅ **Apache Kafka** - Enterprise streaming
+6. ✅ **AMQP (RabbitMQ)** - Enterprise messaging
+7. ✅ **WebSocket** - Real-time web UIs
+8. ✅ **REST API** - HTTP clients
+9. ✅ **MODBUS TCP** - Legacy PLCs and SCADA systems
 
 ## New Files Created
 
