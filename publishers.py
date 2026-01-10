@@ -845,6 +845,244 @@ class WebSocketPublisher(DataPublisher):
             self.logger.error(f"Error publishing to WebSocket: {e}")
 
 
+class ModbusTCPPublisher(DataPublisher):
+    """MODBUS TCP Server Publisher for legacy industrial systems."""
+    
+    def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None):
+        super().__init__(config, logger)
+        if not MODBUS_AVAILABLE:
+            self.logger.warning("MODBUS library not available. Install with: pip install pymodbus")
+            self.enabled = False
+            return
+            
+        self.server_thread = None
+        self.context = None
+        self.tag_register_map = {}  # Maps tag names to register addresses
+        self.register_tag_map = {}  # Maps register addresses to tag info
+        self.next_register = 0
+        
+    def allocate_registers(self, tag_name: str, tag_type: str) -> int:
+        """
+        Allocate MODBUS registers for a tag.
+        
+        Args:
+            tag_name: Name of the tag
+            tag_type: Type of tag (int, float, bool, string)
+            
+        Returns:
+            Starting register address
+        """
+        if tag_name in self.tag_register_map:
+            return self.tag_register_map[tag_name]["start_register"]
+        
+        # Determine number of registers needed
+        if tag_type == "float":
+            num_registers = 2  # 32-bit float = 2 registers
+        elif tag_type == "int":
+            num_registers = 1  # 16-bit int = 1 register
+        elif tag_type == "bool":
+            num_registers = 1  # Boolean = 1 register (0 or 1)
+        elif tag_type == "string":
+            num_registers = 32  # Reserve 32 registers (64 bytes) for strings
+        else:
+            num_registers = 1
+        
+        start_register = self.next_register
+        self.tag_register_map[tag_name] = {
+            "start_register": start_register,
+            "num_registers": num_registers,
+            "type": tag_type
+        }
+        
+        # Create reverse mapping for reading
+        for i in range(num_registers):
+            self.register_tag_map[start_register + i] = {
+                "tag_name": tag_name,
+                "offset": i,
+                "type": tag_type
+            }
+        
+        self.next_register += num_registers
+        self.logger.debug(f"Allocated registers {start_register}-{start_register + num_registers - 1} for {tag_name} ({tag_type})")
+        
+        return start_register
+    
+    def start(self):
+        """Start the MODBUS TCP server."""
+        if not self.enabled or not MODBUS_AVAILABLE:
+            if not MODBUS_AVAILABLE:
+                self.logger.warning("MODBUS TCP publisher is disabled (library not available)")
+            else:
+                self.logger.info("MODBUS TCP publisher is disabled")
+            return
+        
+        try:
+            host = self.config.get("host", "0.0.0.0")
+            port = self.config.get("port", 502)
+            
+            # Initialize register mapping from config
+            register_mapping = self.config.get("register_mapping", {})
+            for tag_name, mapping in register_mapping.items():
+                tag_type = mapping.get("type", "float")
+                if "register" in mapping:
+                    # Use explicit register assignment
+                    start_reg = mapping["register"]
+                    num_regs = 2 if tag_type == "float" else 1
+                    self.tag_register_map[tag_name] = {
+                        "start_register": start_reg,
+                        "num_registers": num_regs,
+                        "type": tag_type
+                    }
+                    self.next_register = max(self.next_register, start_reg + num_regs)
+            
+            # Create MODBUS datastore (65536 registers, initialized to 0)
+            store = ModbusSlaveContext(
+                di=ModbusSequentialDataBlock(0, [0] * 65536),  # Discrete Inputs
+                co=ModbusSequentialDataBlock(0, [0] * 65536),  # Coils
+                hr=ModbusSequentialDataBlock(0, [0] * 65536),  # Holding Registers
+                ir=ModbusSequentialDataBlock(0, [0] * 65536)   # Input Registers
+            )
+            
+            self.context = ModbusServerContext(slaves=store, single=True)
+            
+            # Setup device identification
+            identity = ModbusDeviceIdentification()
+            identity.VendorName = 'OPC UA Gateway'
+            identity.ProductCode = 'OPCUA-MB'
+            identity.VendorUrl = 'https://github.com/yourrepo'
+            identity.ProductName = 'OPC UA to MODBUS Bridge'
+            identity.ModelName = 'MODBUS TCP Server'
+            identity.MajorMinorRevision = '1.0.0'
+            
+            # Start server in separate thread
+            def run_server():
+                StartTcpServer(
+                    context=self.context,
+                    identity=identity,
+                    address=(host, port),
+                    allow_reuse_address=True
+                )
+            
+            self.server_thread = threading.Thread(target=run_server, daemon=True)
+            self.server_thread.start()
+            self.running = True
+            
+            self.logger.info(f"MODBUS TCP server started on {host}:{port}")
+            self.logger.info(f"Allocated {self.next_register} MODBUS registers")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start MODBUS TCP publisher: {e}")
+            self.running = False
+    
+    def stop(self):
+        """Stop the MODBUS TCP server."""
+        if self.running:
+            # pymodbus server doesn't have clean shutdown in thread mode
+            # Server will stop when daemon thread terminates
+            self.running = False
+            self.logger.info("MODBUS TCP publisher stopped")
+    
+    def value_to_registers(self, value: Any, tag_type: str) -> list:
+        """
+        Convert a value to MODBUS register values.
+        
+        Args:
+            value: The value to convert
+            tag_type: Type of the value
+            
+        Returns:
+            List of register values (16-bit integers)
+        """
+        if tag_type == "float":
+            # Convert float to 2 registers (32-bit IEEE 754)
+            packed = struct.pack('>f', float(value))
+            reg1, reg2 = struct.unpack('>HH', packed)
+            return [reg1, reg2]
+        
+        elif tag_type == "int":
+            # Convert int to 1 register (signed 16-bit)
+            # Handle values outside 16-bit range
+            int_value = int(value)
+            if int_value > 32767:
+                int_value = 32767
+            elif int_value < -32768:
+                int_value = -32768
+            # Convert to unsigned for register storage
+            reg_value = int_value & 0xFFFF
+            return [reg_value]
+        
+        elif tag_type == "bool":
+            # Convert bool to 1 register (0 or 1)
+            return [1 if value else 0]
+        
+        elif tag_type == "string":
+            # Convert string to registers (2 chars per register)
+            str_value = str(value)[:64]  # Limit to 64 chars
+            registers = []
+            for i in range(0, len(str_value), 2):
+                char1 = ord(str_value[i]) if i < len(str_value) else 0
+                char2 = ord(str_value[i + 1]) if i + 1 < len(str_value) else 0
+                registers.append((char1 << 8) | char2)
+            # Pad to 32 registers
+            while len(registers) < 32:
+                registers.append(0)
+            return registers
+        
+        return [0]
+    
+    def publish(self, tag_name: str, value: Any, timestamp: Optional[float] = None):
+        """
+        Update MODBUS registers with tag value.
+        
+        Args:
+            tag_name: Name of the tag
+            value: Tag value
+            timestamp: Optional timestamp (not used in MODBUS)
+        """
+        if not self.enabled or not self.running or not MODBUS_AVAILABLE:
+            return
+        
+        try:
+            # Get or allocate registers for this tag
+            if tag_name not in self.tag_register_map:
+                # Auto-allocate if not in mapping
+                tag_type = "float"  # Default to float
+                if isinstance(value, bool):
+                    tag_type = "bool"
+                elif isinstance(value, int):
+                    tag_type = "int"
+                elif isinstance(value, str):
+                    tag_type = "string"
+                
+                self.allocate_registers(tag_name, tag_type)
+            
+            tag_info = self.tag_register_map[tag_name]
+            start_register = tag_info["start_register"]
+            tag_type = tag_info["type"]
+            
+            # Convert value to register values
+            register_values = self.value_to_registers(value, tag_type)
+            
+            # Update holding registers in the datastore
+            slave_context = self.context[0]
+            for i, reg_value in enumerate(register_values):
+                slave_context.setValues(3, start_register + i, [reg_value])  # Function code 3 = holding registers
+            
+            self.logger.debug(f"Updated MODBUS registers {start_register}-{start_register + len(register_values) - 1}: {tag_name} = {value}")
+            
+        except Exception as e:
+            self.logger.error(f"Error publishing to MODBUS: {e}")
+    
+    def get_register_map(self) -> Dict[str, Any]:
+        """
+        Get the current register mapping for documentation.
+        
+        Returns:
+            Dictionary mapping tag names to register info
+        """
+        return self.tag_register_map.copy()
+
+
 class PublisherManager:
     """Manages multiple data publishers."""
     
@@ -898,6 +1136,13 @@ class PublisherManager:
             websocket_pub = WebSocketPublisher(websocket_config, self.logger)
             self.publishers.append(websocket_pub)
             self.logger.info("WebSocket publisher initialized")
+        
+        # MODBUS TCP Publisher
+        modbus_config = publishers_config.get("modbus_tcp", {})
+        if modbus_config.get("enabled", False):
+            modbus_pub = ModbusTCPPublisher(modbus_config, self.logger)
+            self.publishers.append(modbus_pub)
+            self.logger.info("MODBUS TCP publisher initialized")
         
         # REST API Publisher
         rest_config = publishers_config.get("rest_api", {})
