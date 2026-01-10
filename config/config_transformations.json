@@ -1,0 +1,104 @@
+{
+  "transformations": [
+    {
+      "type": "unit_conversion",
+      "source_tag": "Temperature",
+      "target_tag": "Temperature_F",
+      "conversion": "celsius_to_fahrenheit",
+      "description": "Convert temperature from Celsius to Fahrenheit"
+    },
+    {
+      "type": "unit_conversion",
+      "source_tag": "Pressure",
+      "target_tag": "Pressure_PSI",
+      "conversion": "kpa_to_psi",
+      "description": "Convert pressure from kPa to PSI"
+    },
+    {
+      "type": "unit_conversion",
+      "source_tag": "FlowRate",
+      "target_tag": "FlowRate_GPM",
+      "conversion": "lpm_to_gpm",
+      "description": "Convert flow rate from L/min to gal/min"
+    },
+    {
+      "type": "scale_offset",
+      "source_tag": "AnalogInput1",
+      "target_tag": "AnalogInput1_Scaled",
+      "scale": 0.1,
+      "offset": -10,
+      "description": "Scale analog input: (value * 0.1) - 10"
+    },
+    {
+      "type": "scale_offset",
+      "source_tag": "RawSensor",
+      "target_tag": "CalibratedSensor",
+      "scale": 1.05,
+      "offset": 0.5,
+      "description": "Apply sensor calibration: (value * 1.05) + 0.5"
+    },
+    {
+      "type": "alias",
+      "source_tag": "Temperature",
+      "target_tag": "CurrentTemp",
+      "description": "Create alias for temperature"
+    },
+    {
+      "type": "custom",
+      "source_tag": "Humidity",
+      "target_tag": "Humidity_Percent",
+      "expression": "value * 100",
+      "description": "Convert humidity from 0-1 to percentage"
+    }
+  ],
+  "computed_tags": [
+    {
+      "target_tag": "AverageTemperature",
+      "expression": "(Temperature + SetPoint) / 2",
+      "dependencies": ["Temperature", "SetPoint"],
+      "description": "Average of Temperature and SetPoint"
+    },
+    {
+      "target_tag": "TotalFlow",
+      "expression": "FlowRate + SecondaryFlow",
+      "dependencies": ["FlowRate", "SecondaryFlow"],
+      "description": "Sum of primary and secondary flow rates"
+    },
+    {
+      "target_tag": "TemperatureDelta",
+      "expression": "abs(Temperature - SetPoint)",
+      "dependencies": ["Temperature", "SetPoint"],
+      "description": "Absolute difference between temperature and setpoint"
+    },
+    {
+      "target_tag": "PowerCalculation",
+      "expression": "Voltage * Current * PowerFactor",
+      "dependencies": ["Voltage", "Current", "PowerFactor"],
+      "description": "Calculate power: V * I * PF"
+    },
+    {
+      "target_tag": "Efficiency",
+      "expression": "(Output / Input) * 100 if Input > 0 else 0",
+      "dependencies": ["Output", "Input"],
+      "description": "Calculate efficiency percentage"
+    },
+    {
+      "target_tag": "NormalizedPressure",
+      "expression": "(Pressure - 100) / (1000 - 100)",
+      "dependencies": ["Pressure"],
+      "description": "Normalize pressure to 0-1 range"
+    },
+    {
+      "target_tag": "RunningHours",
+      "expression": "RunTime / 3600",
+      "dependencies": ["RunTime"],
+      "description": "Convert runtime from seconds to hours"
+    }
+  ],
+  "settings": {
+    "enable_conversions": true,
+    "enable_computed": true,
+    "update_interval": 1.0,
+    "cache_size": 1000
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "tags": {
+    "Temperature": {
+      "type": "float",
+      "initial_value": 20.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 15.0,
+      "max": 25.0,
+      "units": "°C",
+      "description": "Primary temperature sensor in Celsius"
+    },
+    "SetPoint": {
+      "type": "float",
+      "initial_value": 22.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 20.0,
+      "max": 24.0,
+      "units": "°C",
+      "description": "Temperature setpoint"
+    },
+    "Pressure": {
+      "type": "float",
+      "initial_value": 101.3,
+      "simulate": true,
+      "simulation_type": "sine",
+      "min": 95.0,
+      "max": 105.0,
+      "amplitude": 5.0,
+      "period": 30,
+      "units": "kPa",
+      "description": "System pressure in kilopascals"
+    },
+    "FlowRate": {
+      "type": "float",
+      "initial_value": 50.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 40.0,
+      "max": 60.0,
+      "units": "L/min",
+      "description": "Primary flow rate"
+    },
+    "SecondaryFlow": {
+      "type": "float",
+      "initial_value": 30.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 25.0,
+      "max": 35.0,
+      "units": "L/min",
+      "description": "Secondary flow rate"
+    },
+    "Voltage": {
+      "type": "float",
+      "initial_value": 240.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 230.0,
+      "max": 250.0,
+      "units": "V",
+      "description": "Line voltage"
+    },
+    "Current": {
+      "type": "float",
+      "initial_value": 10.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 8.0,
+      "max": 12.0,
+      "units": "A",
+      "description": "Line current"
+    },
+    "PowerFactor": {
+      "type": "float",
+      "initial_value": 0.95,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 0.90,
+      "max": 0.98,
+      "units": "PF",
+      "description": "Power factor"
+    }
+  },
+  "publishers": {
+    "data_transformation": {
+      "enabled": true,
+      "transformations": [
+        {
+          "type": "unit_conversion",
+          "source_tag": "Temperature",
+          "target_tag": "Temperature_F",
+          "conversion": "celsius_to_fahrenheit",
+          "description": "Convert temperature to Fahrenheit"
+        },
+        {
+          "type": "unit_conversion",
+          "source_tag": "Pressure",
+          "target_tag": "Pressure_PSI",
+          "conversion": "kpa_to_psi",
+          "description": "Convert pressure to PSI"
+        },
+        {
+          "type": "unit_conversion",
+          "source_tag": "FlowRate",
+          "target_tag": "FlowRate_GPM",
+          "conversion": "lpm_to_gpm",
+          "description": "Convert flow to gallons per minute"
+        }
+      ],
+      "computed_tags": [
+        {
+          "target_tag": "AverageTemperature",
+          "expression": "(Temperature + SetPoint) / 2",
+          "dependencies": ["Temperature", "SetPoint"],
+          "description": "Average of Temperature and SetPoint"
+        },
+        {
+          "target_tag": "TotalFlow",
+          "expression": "FlowRate + SecondaryFlow",
+          "dependencies": ["FlowRate", "SecondaryFlow"],
+          "description": "Combined flow rate"
+        },
+        {
+          "target_tag": "TemperatureDelta",
+          "expression": "abs(Temperature - SetPoint)",
+          "dependencies": ["Temperature", "SetPoint"],
+          "description": "Temperature deviation from setpoint"
+        },
+        {
+          "target_tag": "PowerCalculation",
+          "expression": "Voltage * Current * PowerFactor",
+          "dependencies": ["Voltage", "Current", "PowerFactor"],
+          "description": "Electrical power (W)"
+        }
+      ],
+      "enable_conversions": true,
+      "enable_computed": true
+    },
+    "rest_api": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 5000
+    }
+  }
+}

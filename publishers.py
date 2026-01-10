@@ -14,7 +14,7 @@ import threading
 import time
 import requests  # For HTTP requests (Slack webhooks, etc.)
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 import paho.mqtt.client as mqtt
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS

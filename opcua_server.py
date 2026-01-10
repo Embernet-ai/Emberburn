@@ -244,6 +244,49 @@ class OPCUAServer:
         self.logger.info(f"OPC UA Server configured with {len(self.tags)} tags")
         return idx
     
+    def write_tag(self, tag_name: str, value):
+        """
+        Write a value to a tag (used by transformation publisher).
+        
+        Args:
+            tag_name: Name of the tag to write
+            value: Value to write
+        """
+        try:
+            if tag_name in self.tags:
+                var = self.tags[tag_name]["variable"]
+                var.set_value(value)
+                self.logger.debug(f"Wrote transformed tag {tag_name} = {value}")
+            else:
+                # Create new tag for transformed/computed values
+                if self.server:
+                    objects = self.server.get_objects_node()
+                    idx = self.server.get_namespace_index("http://ignition-edge.example")
+                    myobj = objects.get_child([f"{idx}:IgnitionEdge"])
+                    
+                    # Determine type from value
+                    if isinstance(value, bool):
+                        tag_type = "bool"
+                    elif isinstance(value, int):
+                        tag_type = "int"
+                    elif isinstance(value, float):
+                        tag_type = "float"
+                    else:
+                        tag_type = "string"
+                    
+                    var = myobj.add_variable(idx, tag_name, value)
+                    var.set_writable()
+                    
+                    self.tags[tag_name] = {
+                        "variable": var,
+                        "config": {"simulate": False},
+                        "type": tag_type
+                    }
+                    
+                    self.logger.info(f"Created new transformed tag: {tag_name} = {value}")
+        except Exception as e:
+            self.logger.error(f"Error writing tag {tag_name}: {e}")
+    
     def update_tags(self):
         """Update tag values based on simulation configuration."""
         timestamp = time.time()
@@ -400,6 +443,9 @@ class OPCUAServer:
                 # Pass tag metadata to publishers that need it
                 self._setup_tag_metadata()
                 
+                # Setup write callback for transformation publisher
+                self._setup_transformation_callback()
+                
                 self.publisher_manager.start_all()
             
             self.print_server_info()
@@ -429,6 +475,18 @@ class OPCUAServer:
                 # This is likely the REST API or GraphQL publisher
                 publisher.tag_metadata = self.tag_metadata
                 self.logger.debug(f"Passed tag metadata to {publisher.__class__.__name__}")
+    
+    def _setup_transformation_callback(self):
+        """Setup write callback for transformation publisher."""
+        if not self.publisher_manager:
+            return
+        
+        # Find transformation publisher and set write callback
+        for publisher in self.publisher_manager.publishers:
+            if publisher.__class__.__name__ == 'DataTransformationPublisher':
+                publisher.set_write_callback(self.write_tag)
+                self.logger.info("Transformation publisher write callback configured")
+                break
         
         # Stop publishers first
         if self.publisher_manager:

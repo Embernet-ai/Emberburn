@@ -6,9 +6,9 @@
 
 > Sometimes you need fake industrial data that's more reliable than your actual production environment. This is that.
 
-A lightweight, configurable OPC UA server built with Python that simulates industrial process tags **AND publishes data to 14 different protocols simultaneously**. Perfect for testing Ignition Edge, SCADA systems, or any OPC UA client without needing actual hardware. Or money. Or patience.
+A lightweight, configurable OPC UA server built with Python that simulates industrial process tags **AND publishes data to 15 different protocols simultaneously**. Perfect for testing Ignition Edge, SCADA systems, or any OPC UA client without needing actual hardware. Or money. Or patience.
 
-Now with MQTT, REST API, Sparkplug B, Kafka, AMQP, WebSocket, MODBUS TCP, GraphQL, InfluxDB, Alarms, OPC UA Client, Prometheus, SQLite Persistence, AND a beautiful web-based configuration UI! (Yes, we got carried away. No, we're not sorry.)
+Now with MQTT, REST API, Sparkplug B, Kafka, AMQP, WebSocket, MODBUS TCP, GraphQL, InfluxDB, Alarms, OPC UA Client, Prometheus, SQLite Persistence, Data Transformation, AND a beautiful web-based configuration UI! (Yes, we got carried away. No, we're not sorry.)
 
 ## What Does This Actually Do?
 *The TL;DR for People With Deadlines*
@@ -44,7 +44,8 @@ Great for development, testing, demos, or just pretending you have a fully instr
 - **🆕 OPC UA Client**: Push data to other OPC UA servers (Ignition, historians) - Bidirectional baby!
 - **🆕 Prometheus**: Operational metrics (uptime, message counts, errors) - Monitor all the things!
 - **🆕 SQLite Persistence**: Local data storage with historical tag values and audit logging - Never lose data again!
-- **🆕 Multi-Protocol**: Run 14 protocols simultaneously - Because we have issues
+- **🆕 Data Transformation**: Unit conversions, scaling, and computed tags - Transform data on the fly!
+- **🆕 Multi-Protocol**: Run 15 protocols simultaneously - Because we have issues
 - **🔥 EmberBurn Web UI**: Beautiful **Python Flask** web application for configuration and monitoring - Professional, scalable, no build step!
 
 ## Quick Start
@@ -382,9 +383,10 @@ Found a bug? Have an idea? PRs welcome. Please include:
 **Core Guides:**
 - [Configuration Guide](docs/CONFIGURATION.md) - Complete tag and publisher configuration
 - [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md) - System architecture and data flow
-- [Multi-Protocol Summary](docs/MULTI_PROTOCOL_SUMMARY.md) - All 14 protocols explained
+- [Multi-Protocol Summary](docs/MULTI_PROTOCOL_SUMMARY.md) - All 15 protocols explained
 - [Prometheus Integration](docs/PROMETHEUS_INTEGRATION.md) - Operational metrics and monitoring
 - [SQLite Persistence](docs/SQLITE_PERSISTENCE.md) - Historical data storage and audit logging
+- [Data Transformation](docs/DATA_TRANSFORMATION.md) - Unit conversions, scaling, and computed tags ⭐ NEW!
 - [Protocol Comparison Guide](docs/PROTOCOL_GUIDE.md) - Which protocol for which job?
 - **[🔥 EmberBurn Web UI](docs/PYTHON_WEB_APP.md) - Python Flask web application guide** ⭐ NEW!
 - [Web UI Features](docs/WEB_UI.md) - Complete UI feature documentation

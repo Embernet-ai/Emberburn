@@ -7,7 +7,7 @@
 ## What We Just Built 🎉
 *Or: "My Descent Into Multi-Protocol Madness"*
 
-So... your OPC UA Server now supports **14 industrial data streaming protocols** PLUS a beautiful web-based configuration UI.
+So... your OPC UA Server now supports **15 industrial data streaming protocols** PLUS a beautiful web-based configuration UI.
 
 Yeah, I know. That's like ordering every sauce at Taco Bell instead of just picking one. But here we are in 2026, and somehow this makes sense:
 
@@ -25,7 +25,8 @@ Yeah, I know. That's like ordering every sauce at Taco Bell instead of just pick
 12. ✅ **Alarms & Notifications** - Email/Slack/SMS alerting (sleep is overrated anyway)
 13. ✅ **Prometheus** - Operational metrics (uptime, message counts, errors)
 14. ✅ **SQLite Persistence** - Historical tag values and audit logging (never lose data)
-15. 🔥 **EmberBurn Web UI** ⭐ NEW - Beautiful Flask dashboard (professional and scalable!)
+15. ✅ **Data Transformation** - Unit conversions, scaling, computed tags (transform everything!) ⭐ NEW!
+16. 🔥 **EmberBurn Web UI** - Beautiful Flask dashboard (professional and scalable!)
 
 ## New Files Created
 
@@ -221,6 +222,13 @@ kafka-console-consumer --topic industrial-data --bootstrap-server localhost:9092
 - Trend analysis
 - Data retention and archival
 
+### ✅ Use Data Transformation for:
+- Unit conversions (Celsius ↔ Fahrenheit, kPa ↔ PSI)
+- Sensor calibration (scaling and offset)
+- Computed tags (averages, totals, efficiency calculations)
+- Virtual tags from expressions
+- Engineering unit conversions
+
 ## What About Other Protocols?
 
 ### ⚠️ EtherNet/IP, PROFINET, EtherCAT, IO-Link
@@ -372,7 +380,8 @@ Just ask and I can implement them! 🚀
 
 You now have a **production-ready, multi-protocol industrial data server** that:
 
-✅ Publishes to 14 different protocols simultaneously
+✅ Publishes to 15 different protocols simultaneously
+✅ Transforms data in real-time (unit conversions, scaling, computed tags)
 ✅ Integrates natively with Ignition Edge (Sparkplug B)
 ✅ Integrates seamlessly with Node-RED (MQTT, WebSocket, REST)
 ✅ Supports enterprise streaming (Kafka, AMQP)
@@ -382,4 +391,4 @@ You now have a **production-ready, multi-protocol industrial data server** that:
 ✅ Has comprehensive documentation
 ✅ Is easily extensible
 
-**Your data can now go anywhere! 📡**
+**Your data can now go anywhere AND transform on the fly! 📡**
