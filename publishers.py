@@ -57,6 +57,13 @@ try:
 except ImportError:
     OPCUA_CLIENT_AVAILABLE = False
 
+try:
+    import graphene
+    from flask_graphql import GraphQLView
+    GRAPHQL_AVAILABLE = True
+except ImportError:
+    GRAPHQL_AVAILABLE = False
+
 
 class DataPublisher(ABC):
     """Base class for all data publishers."""
