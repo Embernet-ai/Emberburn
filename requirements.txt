@@ -1,1 +1,5 @@
 opcua==0.98.13
+paho-mqtt==1.6.1
+flask==3.0.0
+flask-cors==4.0.0
+websocket-server==0.6.4
