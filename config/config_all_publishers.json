@@ -115,6 +115,23 @@
       },
       "description": "MODBUS TCP server for legacy PLCs and SCADA"
     },
+    "opcua_client": {
+      "enabled": false,
+      "servers": [
+        {
+          "url": "opc.tcp://remote-server:4841",
+          "name": "Remote OPC UA Server",
+          "username": "",
+          "password": "",
+          "namespace": 2,
+          "base_node": "ns=2;s=Gateway/",
+          "auto_create_nodes": true,
+          "node_mapping": {}
+        }
+      ],
+      "reconnect_interval": 5,
+      "description": "OPC UA Client - Push data to other OPC UA servers (Ignition, historians)"
+    },
     "rest_api": {
       "enabled": true,
       "host": "0.0.0.0",
