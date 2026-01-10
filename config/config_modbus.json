@@ -1,0 +1,93 @@
+{
+  "tags": {
+    "Temperature": {
+      "type": "float",
+      "initial_value": 20.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 15.0,
+      "max": 25.0,
+      "description": "Ambient temperature in Celsius"
+    },
+    "Pressure": {
+      "type": "float",
+      "initial_value": 101.3,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 99.0,
+      "max": 103.0,
+      "description": "System pressure in kPa"
+    },
+    "FlowRate": {
+      "type": "float",
+      "initial_value": 100.0,
+      "simulate": true,
+      "simulation_type": "sine",
+      "amplitude": 20.0,
+      "offset": 100.0,
+      "period": 30,
+      "description": "Flow rate in L/min"
+    },
+    "Counter": {
+      "type": "int",
+      "initial_value": 0,
+      "simulate": true,
+      "simulation_type": "increment",
+      "increment": 1,
+      "max": 1000,
+      "reset_on_max": true,
+      "description": "Production counter"
+    },
+    "Status": {
+      "type": "string",
+      "initial_value": "Running",
+      "simulate": false,
+      "description": "System status message"
+    },
+    "IsRunning": {
+      "type": "bool",
+      "initial_value": true,
+      "simulate": false,
+      "description": "System running flag"
+    }
+  },
+  "publishers": {
+    "modbus_tcp": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 502,
+      "register_mapping": {
+        "Temperature": {
+          "register": 0,
+          "type": "float",
+          "description": "Temperature in °C (2 registers)"
+        },
+        "Pressure": {
+          "register": 2,
+          "type": "float",
+          "description": "Pressure in kPa (2 registers)"
+        },
+        "FlowRate": {
+          "register": 4,
+          "type": "float",
+          "description": "Flow rate in L/min (2 registers)"
+        },
+        "Counter": {
+          "register": 6,
+          "type": "int",
+          "description": "Production counter (1 register)"
+        },
+        "IsRunning": {
+          "register": 7,
+          "type": "bool",
+          "description": "Running status (1 register, 0 or 1)"
+        }
+      }
+    },
+    "rest_api": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 5000
+    }
+  }
+}

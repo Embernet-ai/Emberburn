@@ -102,6 +102,19 @@
       "port": 9001,
       "description": "WebSocket for real-time browser updates"
     },
+    "modbus_tcp": {
+      "enabled": false,
+      "host": "0.0.0.0",
+      "port": 502,
+      "register_mapping": {
+        "Temperature": {"register": 0, "type": "float"},
+        "Pressure": {"register": 2, "type": "float"},
+        "FlowRate": {"register": 4, "type": "float"},
+        "Counter": {"register": 6, "type": "int"},
+        "IsRunning": {"register": 7, "type": "bool"}
+      },
+      "description": "MODBUS TCP server for legacy PLCs and SCADA"
+    },
     "rest_api": {
       "enabled": true,
       "host": "0.0.0.0",
