@@ -265,39 +265,44 @@ class RESTAPIPublisher(DataPublisher):
     
     def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None):
         super().__init__(config, logger)
-        self.app = Flask(__name__)
+        self.app = Flask(__name__, 
+                        template_folder='templates',
+                        static_folder='static')
         CORS(self.app)
         self.server_thread = None
         self.tag_cache = {}
         self.write_callback = None
         
-        # Setup routes
+        # Register Web UI Blueprint
+        try:
+            from web_app import web_ui
+            self.app.register_blueprint(web_ui)
+            self.logger.info("EmberBurn Web UI registered")
+        except ImportError as e:
+            self.logger.warning(f"Web UI Blueprint not available: {e}")
+        
+        # Setup API routes
         self.setup_routes()
     
     def setup_routes(self):
-        """Setup Flask routes."""
+        """Setup Flask API routes."""
         
         @self.app.route('/', methods=['GET'])
-        def serve_ui():
-            """Serve the EmberBurn Web UI."""
-            try:
-                # Try to serve from web/ directory
-                ui_path = os.path.join(os.path.dirname(__file__), 'web', 'index.html')
-                if os.path.exists(ui_path):
-                    return send_file(ui_path)
-                else:
-                    return jsonify({
-                        "message": "EmberBurn OPC UA Gateway API",
-                        "endpoints": {
-                            "tags": "/api/tags",
-                            "publishers": "/api/publishers",
-                            "alarms": "/api/alarms/active",
-                            "graphql": "http://localhost:5002/graphql"
-                        }
-                    })
-            except Exception as e:
-                self.logger.error(f"Error serving UI: {e}")
-                return jsonify({"error": "UI not available"}), 500
+        def index_redirect():
+            """Redirect root to dashboard (handled by Blueprint)."""
+            # If web_ui blueprint is registered, Flask will handle the route
+            # Otherwise, return API info
+            return jsonify({
+                "message": "EmberBurn OPC UA Gateway API",
+                "version": "1.0",
+                "endpoints": {
+                    "ui": "/",
+                    "tags": "/api/tags",
+                    "publishers": "/api/publishers",
+                    "alarms": "/api/alarms/active",
+                    "graphql": "http://localhost:5002/graphql"
+                }
+            })
         
         @self.app.route('/api/tags', methods=['GET'])
         def get_all_tags():

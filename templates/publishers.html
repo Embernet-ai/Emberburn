@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Publishers - EmberBurn{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>📡 Publishers</h1>
+    <p>Manage data publishing protocols</p>
+</div>
+
+<div class="publishers-grid" id="publishers-grid">
+    <div class="card">
+        <div class="spinner"></div>
+        <p style="text-align: center; color: var(--smoke-gray); margin-top: 20px;">Loading publishers...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('web_ui.static', filename='js/publishers.js') }}"></script>
+{% endblock %}

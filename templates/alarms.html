@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Alarms - EmberBurn{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>🚨 Alarms</h1>
+    <p>Active alarm monitoring</p>
+</div>
+
+<div id="alarms-container">
+    <div class="spinner"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('web_ui.static', filename='js/alarms.js') }}"></script>
+{% endblock %}

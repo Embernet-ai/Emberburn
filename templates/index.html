@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - EmberBurn{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>🔥 EmberBurn Dashboard</h1>
+    <p>Real-time Industrial IoT Monitoring & Control</p>
+</div>
+
+<div class="card-grid">
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <span>🏷️</span>
+                Active Tags
+            </div>
+        </div>
+        <div class="card-value" id="active-tags-count">0</div>
+        <div class="card-subtitle">Real-time monitoring</div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <span>📡</span>
+                Publishers
+            </div>
+        </div>
+        <div class="card-value" id="publishers-count">0 / 0</div>
+        <div class="card-subtitle">Protocols enabled</div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <span>🚨</span>
+                Active Alarms
+            </div>
+        </div>
+        <div class="card-value" id="alarms-count">0</div>
+        <div class="card-subtitle" id="critical-count">0 critical</div>
+    </div>
+</div>
+
+<div class="section">
+    <h2 style="color: var(--flame-orange); margin-bottom: 20px;">Live Tag Values</h2>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tag Name</th>
+                    <th>Current Value</th>
+                    <th>Last Update</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="live-tags-table">
+                <tr>
+                    <td colspan="4" class="loading">Loading tag data...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('web_ui.static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

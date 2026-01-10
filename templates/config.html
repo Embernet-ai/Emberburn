@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - EmberBurn{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>⚙️ Configuration</h1>
+    <p>System settings and management</p>
+</div>
+
+<div class="card">
+    <h2 style="color: var(--flame-orange); margin-bottom: 20px;">Server Information</h2>
+    <div class="info-grid">
+        <div class="info-item">
+            <strong>OPC UA Endpoint:</strong>
+            <div>opc.tcp://0.0.0.0:4840/freeopcua/server/</div>
+        </div>
+        <div class="info-item">
+            <strong>REST API:</strong>
+            <div>http://localhost:5000/api/</div>
+        </div>
+        <div class="info-item">
+            <strong>GraphQL API:</strong>
+            <div>http://localhost:5002/graphql</div>
+        </div>
+        <div class="info-item">
+            <strong>Platform:</strong>
+            <div>EmberBurn v1.0</div>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h2 style="color: var(--flame-orange); margin-bottom: 20px;">Quick Actions</h2>
+    <div class="action-bar">
+        <button class="btn btn-primary" onclick="alert('Feature coming soon!')">🔄 Restart Server</button>
+        <button class="btn btn-secondary" onclick="alert('Feature coming soon!')">📥 Export Config</button>
+        <button class="btn btn-secondary" onclick="alert('Feature coming soon!')">📤 Import Config</button>
+        <button class="btn btn-secondary" onclick="alert('Feature coming soon!')">📊 View Logs</button>
+    </div>
+</div>
+{% endblock %}

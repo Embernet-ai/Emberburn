@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Tag Monitor - EmberBurn{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>🏷️ Tag Monitor</h1>
+    <p>Real-time tag values and monitoring</p>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Tag Name</th>
+                <th>Value</th>
+                <th>Type</th>
+                <th>Last Update</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tags-table">
+            <tr>
+                <td colspan="5" class="loading">Loading tags...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('web_ui.static', filename='js/tags.js') }}"></script>
+{% endblock %}

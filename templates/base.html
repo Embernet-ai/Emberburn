@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EmberBurn - Industrial IoT Gateway{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('web_ui.static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo-section">
+                <div class="ascii-art ember-logo">
+  _____ __  __ ____  _____ ____  ____  _   _ ____  _   _ 
+ | ____|  \/  | __ )| ____|  _ \| __ )| | | |  _ \| \ | |
+ |  _| | |\/| |  _ \|  _| | |_) |  _ \| | | | |_) |  \| |
+ | |___| |  | | |_) | |___|  _ <| |_) | |_| |  _ <| |\  |
+ |_____|_|  |_|____/|_____|_| \_\____/ \___/|_| \_\_| \_|
+                </div>
+                <div class="ascii-art fireball-logo">
+    _____ _           _           _ _ 
+   |  ___(_)_ __ ___| |__   __ _| | |
+   | |_  | | '__/ _ \ '_ \ / _` | | |
+   |  _| | | | |  __/ |_) | (_| | | |
+   |_|   |_|_|  \___|_.__/ \__,_|_|_|
+                                      
+   ___           _           _        _           
+  |_ _|_ __   __| |_   _ ___| |_ _ __(_) ___  ___ 
+   | || '_ \ / _` | | | / __| __| '__| |/ _ \/ __|
+   | || | | | (_| | |_| \__ \ |_| |  | |  __/\__ \
+  |___|_| |_|\__,_|\__,_|___/\__|_|  |_|\___||___/
+                </div>
+                <div class="tagline">Industrial IoT Gateway Platform</div>
+            </div>
+
+            <nav>
+                <ul class="nav-menu">
+                    <li><a href="{{ url_for('web_ui.index') }}" class="nav-item {% if request.endpoint == 'web_ui.index' %}active{% endif %}">
+                        <span class="nav-icon">📊</span>
+                        <span>Dashboard</span>
+                    </a></li>
+                    <li><a href="{{ url_for('web_ui.tags') }}" class="nav-item {% if request.endpoint == 'web_ui.tags' %}active{% endif %}">
+                        <span class="nav-icon">🏷️</span>
+                        <span>Tag Monitor</span>
+                    </a></li>
+                    <li><a href="{{ url_for('web_ui.publishers') }}" class="nav-item {% if request.endpoint == 'web_ui.publishers' %}active{% endif %}">
+                        <span class="nav-icon">📡</span>
+                        <span>Publishers</span>
+                    </a></li>
+                    <li><a href="{{ url_for('web_ui.alarms') }}" class="nav-item {% if request.endpoint == 'web_ui.alarms' %}active{% endif %}">
+                        <span class="nav-icon">🚨</span>
+                        <span>Alarms</span>
+                    </a></li>
+                    <li><a href="{{ url_for('web_ui.config') }}" class="nav-item {% if request.endpoint == 'web_ui.config' %}active{% endif %}">
+                        <span class="nav-icon">⚙️</span>
+                        <span>Configuration</span>
+                    </a></li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="footer-item">12 Protocols Active</div>
+                <div class="footer-item">© 2026 Fireball Industries</div>
+                <div class="footer-item">By Patrick Ryan, CTO</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Core JavaScript -->
+    <script src="{{ url_for('web_ui.static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('web_ui.static', filename='js/app.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

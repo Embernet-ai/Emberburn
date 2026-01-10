@@ -43,7 +43,7 @@ Great for development, testing, demos, or just pretending you have a fully instr
 - **🆕 Alarms**: Threshold-based alerting via email/Slack/SMS - Sleep soundly (or don't, when things break)
 - **🆕 OPC UA Client**: Push data to other OPC UA servers (Ignition, historians) - Bidirectional baby!
 - **🆕 Multi-Protocol**: Run 12 protocols simultaneously - Because we have issues
-- **🔥 EmberBurn Web UI**: Beautiful React-based dashboard for configuration and monitoring - No more JSON editing!
+- **🔥 EmberBurn Web UI**: Beautiful **Python Flask** web application for configuration and monitoring - Professional, scalable, no build step!
 
 ## Quick Start
 
@@ -382,7 +382,9 @@ Found a bug? Have an idea? PRs welcome. Please include:
 - [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md) - System architecture and data flow
 - [Multi-Protocol Summary](docs/MULTI_PROTOCOL_SUMMARY.md) - All 12 protocols explained
 - [Protocol Comparison Guide](docs/PROTOCOL_GUIDE.md) - Which protocol for which job?
-- **[🔥 EmberBurn Web UI](docs/WEB_UI.md) - Beautiful web-based configuration dashboard** ⭐ NEW!
+- **[🔥 EmberBurn Web UI](docs/PYTHON_WEB_APP.md) - Python Flask web application guide** ⭐ NEW!
+- [Web UI Features](docs/WEB_UI.md) - Complete UI feature documentation
+- [Web UI Quick Start](docs/WEB_UI_QUICKSTART.md) - 60-second start guide
 
 **Integration Guides:**
 - [Ignition Edge Integration](docs/IGNITION_INTEGRATION.md) - Sparkplug B + OPC UA Client setup
@@ -397,11 +399,11 @@ All docs written in Patrick Ryan's signature style - snarky but helpful.
 
 ## Quick Start with Web UI 🔥
 
-Want the easiest experience? Use the EmberBurn Web UI:
+**The easiest way to get started** - Proper Python Flask web application:
 
-1. **Start the server with REST API enabled:**
+1. **Start the server:**
    ```bash
-   python opcua_server.py -c config/config_all_publishers.json
+   python opcua_server.py -c config/config_web_ui.json
    ```
 
 2. **Open your browser:**
@@ -409,13 +411,22 @@ Want the easiest experience? Use the EmberBurn Web UI:
    http://localhost:5000/
    ```
 
-3. **Enjoy the dashboard!**
-   - Real-time tag monitoring
-   - Enable/disable publishers with one click
-   - View active alarms
-   - No JSON editing required!
+3. **Explore the UI:**
+   - 📊 **Dashboard** - Live metrics and tag values
+   - 🏷️ **Tag Monitor** - Complete tag listing
+   - 📡 **Publishers** - Enable/disable protocols
+   - 🚨 **Alarms** - Active alarm monitoring
+   - ⚙️ **Configuration** - System settings
 
-See [docs/WEB_UI.md](docs/WEB_UI.md) for the full guide.
+**Features:**
+- ✅ Python Flask Blueprint architecture
+- ✅ Jinja2 server-side templates
+- ✅ Vanilla JavaScript (no build step!)
+- ✅ Fire-themed dark mode design
+- ✅ Real-time updates (2-second intervals)
+- ✅ ASCII art branding (Fireball Industries + EmberBurn)
+
+See [docs/PYTHON_WEB_APP.md](docs/PYTHON_WEB_APP.md) for complete setup and customization.
 
 ## License
 
