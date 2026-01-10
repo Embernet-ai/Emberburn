@@ -6,9 +6,9 @@
 
 > Sometimes you need fake industrial data that's more reliable than your actual production environment. This is that.
 
-A lightweight, configurable OPC UA server built with Python that simulates industrial process tags **AND publishes data to 9 different protocols simultaneously**. Perfect for testing Ignition Edge, SCADA systems, or any OPC UA client without needing actual hardware. Or money. Or patience.
+A lightweight, configurable OPC UA server built with Python that simulates industrial process tags **AND publishes data to 12 different protocols simultaneously**. Perfect for testing Ignition Edge, SCADA systems, or any OPC UA client without needing actual hardware. Or money. Or patience.
 
-Now with MQTT, REST API, Sparkplug B, Kafka, AMQP, WebSocket, MODBUS TCP, and OPC UA Client mode! (Yes, we got carried away. No, we're not sorry.)
+Now with MQTT, REST API, Sparkplug B, Kafka, AMQP, WebSocket, MODBUS TCP, GraphQL, InfluxDB, Alarms, OPC UA Client, AND a beautiful web-based configuration UI! (Yes, we got carried away. No, we're not sorry.)
 
 ## What Does This Actually Do?
 *The TL;DR for People With Deadlines*
@@ -43,6 +43,7 @@ Great for development, testing, demos, or just pretending you have a fully instr
 - **🆕 Alarms**: Threshold-based alerting via email/Slack/SMS - Sleep soundly (or don't, when things break)
 - **🆕 OPC UA Client**: Push data to other OPC UA servers (Ignition, historians) - Bidirectional baby!
 - **🆕 Multi-Protocol**: Run 12 protocols simultaneously - Because we have issues
+- **🔥 EmberBurn Web UI**: Beautiful React-based dashboard for configuration and monitoring - No more JSON editing!
 
 ## Quick Start
 
