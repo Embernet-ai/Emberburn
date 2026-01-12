@@ -1,67 +1,8 @@
-# .dockerignore - Because we don't need to containerize EVERYTHING
-# 
-# Patrick's Rules:
-# 1. Don't ship your .git folder (rookie mistake)
-# 2. Don't ship your virtual environments (Python packages installed in container)
-# 3. Don't ship your compiled bytecode (rebuild it fresh)
-
-# Git stuff
-.git
-.gitignore
-.gitattributes
-
-# Python stuff
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+*.pyc
+.git
+.env
 venv/
-env/
-ENV/
-*.egg-info/
-dist/
-build/
-
-# IDE stuff
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS stuff
-.DS_Store
-Thumbs.db
-*.log
-
-# Documentation (keep it in repo, not container)
 *.md
-docs/
 !README.md
-
-# Test files
-test/
-tests/
-*.test.py
-
-# Local data (will be mounted as volumes)
-data/
-logs/
-*.db
-*.sqlite
-
-# CI/CD
-.github/
-.gitlab-ci.yml
-Jenkinsfile
-
-# Kubernetes stuff (meta, I know)
-k8s/
-helm/
-*.yaml
-!requirements.txt
-
-# Config files (will be injected via ConfigMap)
-config/*.json
-!config/config_transformations_demo.json
+data/*.db
