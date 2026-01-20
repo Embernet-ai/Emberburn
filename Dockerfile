@@ -6,30 +6,41 @@ LABEL maintainer="patrick@fireball-industries.com"
 
 WORKDIR /app
 
-# Install git and build dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
-    git \
     gcc g++ \
     libxml2-dev libxslt-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements first for better layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create data directory for SQLite and logs
+RUN mkdir -p /app/data && \
+    chmod 755 /app/data
+
 # Create non-root user
 RUN useradd -m -u 1000 emberburn && \
-    mkdir -p /app/data && \
     chown -R emberburn:emberburn /app
 
+# Switch to non-root user
 USER emberburn
 
 EXPOSE 4840 5000 8000
 
 ENV PYTHONUNBUFFERED=1 \
     UPDATE_INTERVAL=2.0 \
-    LOG_LEVEL=INFO \
-    REPO_URL=https://github.com/fireball-industries/Small-Application.git \
-    REPO_BRANCH=main
+    LOG_LEVEL=INFO
 
-# Entrypoint script that clones code and runs it
-COPY --chown=emberburn:emberburn entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD python -c "import socket; s=socket.socket(); s.connect(('localhost', 4840)); s.close()" || exit 1
 
-ENTRYPOINT ["/entrypoint.sh"]
+# Run the OPC UA server with default config
+CMD ["python", "opcua_server.py", "-c", "config/config_web_ui.json"]
