@@ -1,4 +1,4 @@
-# OPC UA Server for Testing & Simulation
+# Emberburn for Testing & Simulation
 > *Because Your Production Environment is Too Precious to Test On*
 > 
 > **By Patrick Ryan, CTO @ Fireball Industries**  
@@ -6,7 +6,7 @@
 
 > Sometimes you need fake industrial data that's more reliable than your actual production environment. This is that.
 
-A lightweight, configurable OPC UA server built with Python that simulates industrial process tags **AND publishes data to 15 different protocols simultaneously**. Perfect for testing Ignition Edge, SCADA systems, or any OPC UA client without needing actual hardware. Or money. Or patience.
+A lightweight, configurable server built with Python that simulates industrial process tags **AND publishes data to 15 different protocols simultaneously**. Perfect for testing Ignition Edge, SCADA systems, or any OPC UA client without needing actual hardware. Or money. Or patience.
 
 Now with MQTT, REST API, Sparkplug B, Kafka, AMQP, WebSocket, MODBUS TCP, GraphQL, InfluxDB, Alarms, OPC UA Client, Prometheus, SQLite Persistence, Data Transformation, AND a beautiful web-based configuration UI! (Yes, we got carried away. No, we're not sorry.)
 
