@@ -268,7 +268,7 @@ persistence:
   storageClass: ""
 
   # Storage size
-  size: "10Gi"
+  size: "2Gi"
 
   # Access mode
   accessMode: ReadWriteOnce
