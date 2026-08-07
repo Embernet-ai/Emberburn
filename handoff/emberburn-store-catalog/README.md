@@ -1,4 +1,4 @@
-# EmberBurn — dashboard app tile icon
+# EmberBurn: dashboard app tile icon
 
 **Status: resolved in the chart as of 4.1.9. No catalog registration required.**
 
@@ -10,7 +10,7 @@ dashboard v4.1.34, derived from the Go source) says so explicitly in its §9.
 
 The correct contract:
 
-- `embernet.ai/app-icon` is an **annotation**, never a label — label values
+- `embernet.ai/app-icon` is an **annotation**, never a label: label values
   cannot contain `/` or `:` (contract §3).
 - It is read from **both pod and Service annotations** (`client.go:307-309`).
   Setting it only on the Service leaves node cards showing a generic glyph
@@ -25,7 +25,7 @@ the pod template and the web UI Service.
 A data URI was chosen over the alternatives because:
 
 - **An external URL** (`avatars.githubusercontent.com`, the previous default)
-  cannot resolve in an air-gapped Embernet cluster — this was the original bug.
+  cannot resolve in an air-gapped Embernet cluster, this was the original bug.
 - **A pod-relative path** (`/static/web/images/...`) resolves against whichever
   origin the dashboard renders the tile from, not against the pod.
 - **A data URI** is origin-independent and needs no network at all.
@@ -62,8 +62,8 @@ used to point at it. Do not use it for EmberBurn.
 Two in-repo documents contradict the source-derived contract and should be
 corrected or retired:
 
-1. `documentation/HELM_CHART_REQUIREMENTS (1).md` — says the icon comes from pod
+1. `documentation/HELM_CHART_REQUIREMENTS (1).md`: says the icon comes from pod
    *labels* via store-catalog cross-reference. Contract §9.5 says otherwise.
-2. `.agent/APP_STORE_DEPLOYMENT_FLOW.md` — cited by chart v4.1.8 (`507192f`) as
+2. `.agent/APP_STORE_DEPLOYMENT_FLOW.md`: cited by chart v4.1.8 (`507192f`) as
    requiring a full icon URL, which is what reintroduced the external GitHub
    avatar. Contract §9 lists seven ways this document is out of date.

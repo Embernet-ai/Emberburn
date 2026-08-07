@@ -14,7 +14,7 @@ Review of `App_Integration_Guide.md` and the EmberBurn codebase revealed **1 cri
 
 ## Phase 1: Critical Fix (Immediate)
 
-### Issue 1.1: Missing `dashboard.html` Template — BROKEN ROUTE
+### Issue 1.1: Missing `dashboard.html` Template: BROKEN ROUTE
 
 **File:** `web_app.py` (Lines 27-29)  
 **Severity:** 🔴 Critical  
@@ -38,7 +38,7 @@ The route references `dashboard.html`, but only these templates exist:
 - `tag_generator.html`
 - `base.html`
 
-**Fix Option A (Recommended) — Redirect to Index:**
+**Fix Option A (Recommended): Redirect to Index:**
 ```python
 from flask import redirect, url_for
 
@@ -48,13 +48,13 @@ def dashboard():
     return redirect(url_for('web_ui.index'))
 ```
 
-**Fix Option B — Remove Redundant Route:**
+**Fix Option B: Remove Redundant Route:**
 Simply delete lines 27-29 from `web_app.py`. The main dashboard is already served at `/`.
 
 **Verification Steps:**
 1. Start the server: `python opcua_server.py -c config/config_web_ui.json`
-2. Navigate to `http://localhost:5000/` — Should show dashboard ✓
-3. Navigate to `http://localhost:5000/dashboard` — Currently returns 500 error
+2. Navigate to `http://localhost:5000/`: Should show dashboard ✓
+3. Navigate to `http://localhost:5000/dashboard`: Currently returns 500 error
 4. After fix, `/dashboard` should redirect to `/` or show dashboard
 
 ---
@@ -82,11 +82,11 @@ Verify the app works with the Embernet Dashboard ecosystem as documented in `App
 
 ### 3.1 Required Helm Labels (Verified in `helm/opcua-server/`)
 
-- [ ] `embernet.ai/store-app: "true"` — Required for dashboard visibility
-- [ ] `embernet.ai/gui-type: "web"` — EmberBurn has web UI
-- [ ] `embernet.ai/gui-port: "5000"` — Flask runs on port 5000
-- [ ] `embernet.ai/app-name: "Emberburn"` — Display name
-- [ ] `app: emberburn` — Service selector
+- [ ] `embernet.ai/store-app: "true"`: Required for dashboard visibility
+- [ ] `embernet.ai/gui-type: "web"`: EmberBurn has web UI
+- [ ] `embernet.ai/gui-port: "5000"`: Flask runs on port 5000
+- [ ] `embernet.ai/app-name: "Emberburn"`: Display name
+- [ ] `app: emberburn`: Service selector
 
 ### 3.2 iframe Compatibility
 

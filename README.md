@@ -7,11 +7,11 @@
 
 ---
 
-Look, you clicked on this repo, so either you're into industrial automation, you Googled something cursed, or GitHub's algorithm finally snapped. Either way — welcome. Buckle up. This README is the only therapy session you're getting.
+Look, you clicked on this repo, so either you're into industrial automation, you Googled something cursed, or GitHub's algorithm finally snapped. Either way, welcome. Buckle up. This README is the only therapy session you're getting.
 
 ## So What the Hell Is This?
 
-Emberburn is a **fully simulated industrial data gateway** written in Python. It pretends to be an entire factory floor so you don't have to buy one. It generates fake-but-realistic OPC UA tag data — temperatures, pressures, counters, booleans, strings, the whole nine yards — and then absolutely **firehoses** that data out to every protocol known to mankind.
+Emberburn is a **fully simulated industrial data gateway** written in Python. It pretends to be an entire factory floor so you don't have to buy one. It generates fake-but-realistic OPC UA tag data (temperatures, pressures, counters, booleans, strings, the whole nine yards) and then absolutely **firehoses** that data out to every protocol known to mankind.
 
 Think of it as a digital twin, except the twin has ADHD and subscriptions to 15 different messaging services.
 
@@ -40,12 +40,12 @@ Because every industrial automation engineer has had this exact conversation:
 Real PLCs cost money. Real SCADA systems cost *more* money. Real production environments cost "update your resume" money when you break them. Emberburn costs you nothing but the mass of Python packages currently having a party in your virtual environment.
 
 **Use it for:**
-- 🧪 **Development** — Build and test your OPC UA clients against something that won't fire you
-- 🎭 **Demos** — Impress stakeholders with "live data" that has a 100% uptime SLA (it's fake, it literally can't fail)
-- 🔌 **Integration Testing** — Validate your SCADA/HMI/historian pipelines without holding anyone's production environment hostage
-- 📚 **Training** — Teach people OPC UA without needing a $50K PLC training rig
-- 🌉 **Protocol Bridging** — OPC UA to MQTT? OPC UA to Kafka? OPC UA to carrier pigeon? (okay not that last one... yet)
-- 💀 **Chaos Engineering** — Send garbage data to your systems on purpose and see what happens. Growth mindset.
+- 🧪 **Development**: Build and test your OPC UA clients against something that won't fire you
+- 🎭 **Demos**: Impress stakeholders with "live data" that has a 100% uptime SLA (it's fake, it literally can't fail)
+- 🔌 **Integration Testing**: Validate your SCADA/HMI/historian pipelines without holding anyone's production environment hostage
+- 📚 **Training**: Teach people OPC UA without needing a $50K PLC training rig
+- 🌉 **Protocol Bridging**: OPC UA to MQTT? OPC UA to Kafka? OPC UA to carrier pigeon? (okay not that last one... yet)
+- 💀 **Chaos Engineering**: Send garbage data to your systems on purpose and see what happens. Growth mindset.
 
 ## The Protocol Addiction Problem (15 and Counting)
 
@@ -79,9 +79,9 @@ I audited that table in 4.1.9. Two rows were writing checks the code could not c
 
 **Sparkplug B** was worse, and I'm not dressing it up. The publisher imported a module called `sparkplug_b`. That package does not exist on PyPI. It was not vendored in this repo. It was never installable by anyone, ever. A genuinely well-written publisher for a library that, as far as Python is concerned, was imaginary.
 
-And it got better: where it *did* build payloads, it sent **JSON** to `spBv1.0/` topics. Sparkplug B is protobuf. So even in the fantasy universe where the import worked, no real consumer — Ignition, Chariot, HiveMQ — could have decoded a single message. It was hand-rolling sequence numbers and `bdSeq` and birth/death ordering, which are exactly the parts of the spec that are easy to get quietly wrong, in service of a wire format that was wrong anyway.
+And it got better: where it *did* build payloads, it sent **JSON** to `spBv1.0/` topics. Sparkplug B is protobuf. So even in the fantasy universe where the import worked, no real consumer (Ignition, Chariot, HiveMQ) could have decoded a single message. It was hand-rolling sequence numbers and `bdSeq` and birth/death ordering, which are exactly the parts of the spec that are easy to get quietly wrong, in service of a wire format that was wrong anyway.
 
-Rewritten onto `pysparkplug` in 4.1.9. Real protobuf, real NBIRTH/DBIRTH/DDATA/NDEATH lifecycle, and the library owns the sequencing so I can't get it wrong again. There's a test — `test_sparkplug.py` — that stands up an in-process broker, sniffs the wire, and asserts the payloads decode as protobuf and specifically **are not JSON**, because that's the bug that hid for a year behind an import guard.
+Rewritten onto `pysparkplug` in 4.1.9. Real protobuf, real NBIRTH/DBIRTH/DDATA/NDEATH lifecycle, and the library owns the sequencing so I can't get it wrong again. There's a test, `test_sparkplug.py`, that stands up an in-process broker, sniffs the wire, and asserts the payloads decode as protobuf and specifically **are not JSON**, because that's the bug that hid for a year behind an import guard.
 
 So: 15 protocols, 15 of which actually run. Took an embarrassing audit to get there. Honesty is a feature.
 
@@ -90,14 +90,14 @@ So: 15 protocols, 15 of which actually run. Took an embarrassing audit to get th
 Tags are the heartbeat of any industrial system, and Emberburn lets you define them all through JSON config files because YAML had its chance and blew it.
 
 Every tag gets:
-- **A data type** — `float`, `int`, `string`, `bool` — because the real world has variety
-- **A simulation mode** — how the value changes over time:
-  - `random` — Chaotic. Unpredictable. Like your sprint velocity.
-  - `sine` — Smooth, oscillating, beautiful. Engineers get unreasonably excited about this one.
-  - `increment` — Goes up. Resets at max. Repeat. The Sisyphus of simulation modes.
-  - `static` — Doesn't change. For when you want your simulation to have the personality of a brick.
-- **Min/max bounds** — Keep your fake data within the realm of plausibility (or don't, I'm not your dad)
-- **Metadata** — Engineering units, descriptions, alarm thresholds, whatever you want to slap on there
+- **A data type** (`float`, `int`, `string`, `bool`) because the real world has variety
+- **A simulation mode**: how the value changes over time:
+  - `random`: Chaotic. Unpredictable. Like your sprint velocity.
+  - `sine`: Smooth, oscillating, beautiful. Engineers get unreasonably excited about this one.
+  - `increment`: Goes up. Resets at max. Repeat. The Sisyphus of simulation modes.
+  - `static`: Doesn't change. For when you want your simulation to have the personality of a brick.
+- **Min/max bounds**: Keep your fake data within the realm of plausibility (or don't, I'm not your dad)
+- **Metadata**: Engineering units, descriptions, alarm thresholds, whatever you want to slap on there
 
 Here's the vibe:
 
@@ -123,23 +123,23 @@ Here's the vibe:
 }
 ```
 
-We've got example configs for days in the [config/](config/) directory — simple setups, full manufacturing simulations, process control scenarios, multi-protocol configs. Pick one, run it, feel powerful.
+We've got example configs for days in the [config/](config/) directory, simple setups, full manufacturing simulations, process control scenarios, multi-protocol configs. Pick one, run it, feel powerful.
 
 ## The Web UI (It's Gorgeous and I'm Not Humble About It)
 
-Emberburn ships with a full **Python Flask web application** — fire-themed dark mode, real-time dashboards, the works. No React. No webpack. No `node_modules` folder that weighs more than your actual code. Just Flask, Jinja2 templates, and vanilla JavaScript like the founding fathers intended.
+Emberburn ships with a full **Python Flask web application**: fire-themed dark mode, real-time dashboards, the works. No React. No webpack. No `node_modules` folder that weighs more than your actual code. Just Flask, Jinja2 templates, and vanilla JavaScript like the founding fathers intended.
 
 **What you get:**
-- 📊 **Dashboard** — Live metrics, tag counts, publisher statuses, and a general sense of accomplishment
-- 🏷️ **Tag Monitor** — Every tag, every value, updating in real-time. It's like watching the Matrix but for industrial data.
-- 📡 **Publishers** — See which protocols are running, enable/disable them, feel like a DJ mixing data streams
-- 🚨 **Alarms** — Active alerts, alarm history, threshold configuration. Sleep is overrated anyway.
-- ⚙️ **Configuration** — Server info, config export, and a live log viewer. Until 4.1.9 this page had four buttons that all popped `alert('Feature coming soon!')`. They do things now. The two that were never going to happen got deleted instead of faked.
-- 🏗️ **Tag Generator** — Create new OPC UA tags from the browser. Point and click your way to industrial simulation.
+- 📊 **Dashboard**: Live metrics, tag counts, publisher statuses, and a general sense of accomplishment
+- 🏷️ **Tag Monitor**: Every tag, every value, updating in real-time. It's like watching the Matrix but for industrial data.
+- 📡 **Publishers**: See which protocols are running, enable/disable them, feel like a DJ mixing data streams
+- 🚨 **Alarms**: Active alerts, alarm history, threshold configuration. Sleep is overrated anyway.
+- ⚙️ **Configuration**: Server info, config export, and a live log viewer. Until 4.1.9 this page had four buttons that all popped `alert('Feature coming soon!')`. They do things now. The two that were never going to happen got deleted instead of faked.
+- 🏗️ **Tag Generator**: Create new OPC UA tags from the browser. Point and click your way to industrial simulation.
 
 The UI updates every 2 seconds because real-time means REAL TIME, and it's all wrapped in a dark mode fire aesthetic because we're EmberBurn, not EmberBoring.
 
-**About that Tag Generator.** It shipped as a complete, polished, fully-wired UI talking to a backend that was connected to absolutely nothing. Every create, every write, every bulk import returned `501 Write not supported`, because the callback that hands the REST publisher a way into the OPC UA address space was only ever wired to a different publisher entirely. And underneath *that*, the write function had no `return` statement — so even once I fixed the wiring, every successful write would have reported itself as a failure. Two independent bugs stacked on the same code path, and a delete endpoint that cleared a cache the next update cycle refilled two seconds later while cheerfully returning `success: true`. All three fixed in 4.1.9. The Tag Generator is a real feature now instead of an elaborate diorama.
+**About that Tag Generator.** It shipped as a complete, polished, fully-wired UI talking to a backend that was connected to absolutely nothing. Every create, every write, every bulk import returned `501 Write not supported`, because the callback that hands the REST publisher a way into the OPC UA address space was only ever wired to a different publisher entirely. And underneath *that*, the write function had no `return` statement, so even once I fixed the wiring, every successful write would have reported itself as a failure. Two independent bugs stacked on the same code path, and a delete endpoint that cleared a cache the next update cycle refilled two seconds later while cheerfully returning `success: true`. All three fixed in 4.1.9. The Tag Generator is a real feature now instead of an elaborate diorama.
 
 ## Architecture (For the Diagram People)
 
@@ -178,7 +178,7 @@ The UI updates every 2 seconds because real-time means REAL TIME, and it's all w
                         └─────────────────────────┘
 ```
 
-The OPC UA server is the brain. The Publisher Manager is the nervous system. Everything else is just... appendages we keep growing. Each publisher runs independently in its own thread. If one dies, the others keep vibing. It's the cockroach architecture — unkillable, persistent, slightly unnerving.
+The OPC UA server is the brain. The Publisher Manager is the nervous system. Everything else is just... appendages we keep growing. Each publisher runs independently in its own thread. If one dies, the others keep vibing. It's the cockroach architecture, unkillable, persistent, slightly unnerving.
 
 All publishers are **opt-in via config**. Don't want Kafka? Don't enable it. Don't have a RabbitMQ instance? Cool, AMQP stays asleep. The app only loads what you ask for. We're chaotic, not wasteful.
 
@@ -194,7 +194,7 @@ All publishers are **opt-in via config**. Don't want Kafka? Don't enable it. Don
 
 ## Security (New in 4.1.9, Previously a Rumor)
 
-Let me tell you what this looked like before 4.1.9. Grep the entire codebase for `login_required`, `authenticate`, `Authorization`, `jwt`, `api_key` — zero hits. Not one. CORS was open to every origin on the internet. `POST` and `DELETE` on `/api/tags/*` took anyone who could reach the port. The OPC UA endpoint sat on `0.0.0.0:4840` anonymous and unencrypted.
+Let me tell you what this looked like before 4.1.9. Grep the entire codebase for `login_required`, `authenticate`, `Authorization`, `jwt`, `api_key`, zero hits. Not one. CORS was open to every origin on the internet. `POST` and `DELETE` on `/api/tags/*` took anyone who could reach the port. The OPC UA endpoint sat on `0.0.0.0:4840` anonymous and unencrypted.
 
 On an industrial gateway. With an ingress template shipped in the box.
 
@@ -204,19 +204,19 @@ I'd like to say this was a considered threat model. It was not. It was scope cre
 
 - **Writes need a token.** `POST`/`PUT`/`PATCH`/`DELETE` on `/api/*` require an `X-EmberBurn-Token` header. Reads stay open, because the dashboard polls them constantly and there's no session to authenticate against
 - **The UI still just works.** The pod injects the token into the HTML it serves, so the dashboard iframe has zero login prompts, zero redirects, zero usernames. It authenticates itself and you never see it
-- **Unless you don't want that.** Set `security.uiWrites: false` and the UI drops to read-only while your automation, holding the token, keeps writing. That's the setting you want if this is reachable from anything you don't trust — because if the UI can write without a login, anyone who can load the UI can write. I can't engineer that away, so I gave you a switch instead of pretending
+- **Unless you don't want that.** Set `security.uiWrites: false` and the UI drops to read-only while your automation, holding the token, keeps writing. That's the setting you want if this is reachable from anything you don't trust, because if the UI can write without a login, anyone who can load the UI can write. I can't engineer that away, so I gave you a switch instead of pretending
 - **CORS is same-origin** by default now. Widen it deliberately via `security.corsOrigins`
-- **OPC UA gets real auth** — Basic256Sha256 signing and encryption, plus username/password against a Secret. It's **off by default**, because turning it on breaks every anonymous SCADA client you own until each one is reconfigured with credentials and a trusted cert. Your call, your timeline. If you enable it half-configured it refuses to start rather than quietly serving plaintext and letting you believe you're encrypted
+- **OPC UA gets real auth**: Basic256Sha256 signing and encryption, plus username/password against a Secret. It's **off by default**, because turning it on breaks every anonymous SCADA client you own until each one is reconfigured with credentials and a trusted cert. Your call, your timeline. If you enable it half-configured it refuses to start rather than quietly serving plaintext and letting you believe you're encrypted
 
 Credentials come from a Helm-managed Secret, or point `security.existingSecret` at sealed-secrets / external-secrets / vault and keep them out of the chart entirely.
 
 Still not a hardened appliance. It's a simulator that grew up in public. But "no auth whatsoever" is no longer the answer to "how is this secured."
 
-**The OPC UA listener got resource bounds, too.** A protocol server that accepts whatever a client feels like sending is a protocol server that eventually meets a client who sends too much. Message reassembly is capped now, a client that blows past the cap loses its channel and nobody else notices, and there's a test that proves the cap actually engages instead of just existing in a config file I feel good about. Defaults are generous — you'd have to be doing something genuinely unhinged with your address space to notice, and if you are, it's tunable.
+**The OPC UA listener got resource bounds, too.** A protocol server that accepts whatever a client feels like sending is a protocol server that eventually meets a client who sends too much. Message reassembly is capped now, a client that blows past the cap loses its channel and nobody else notices, and there's a test that proves the cap actually engages instead of just existing in a config file I feel good about. Defaults are generous, you'd have to be doing something genuinely unhinged with your address space to notice, and if you are, it's tunable.
 
 Belt and braces regardless: the chart's NetworkPolicy keeps 4840 inside the cluster and the pod memory limits mean the worst day is a restart. **Still don't put 4840 on an untrusted network.** It's an industrial protocol from an era that assumed the network was a friend.
 
-And dependency CVEs now fail CI — `.github/workflows/security-audit.yml`, on every `requirements.txt` change plus weekly, because a vulnerability published against a pin I haven't touched in six months is exactly the one I'd never look for. This is not hypothetical: two transitive ones sat in this repo unnoticed until 4.1.9, entirely because nothing was checking and I am not a person who checks.
+And dependency CVEs now fail CI, `.github/workflows/security-audit.yml`, on every `requirements.txt` change plus weekly, because a vulnerability published against a pin I haven't touched in six months is exactly the one I'd never look for. This is not hypothetical: two transitive ones sat in this repo unnoticed until 4.1.9, entirely because nothing was checking and I am not a person who checks.
 
 ## Environment Variables
 
@@ -235,30 +235,30 @@ For the "I refuse to edit config files" crowd (honestly, same):
 Look, I know nobody reads docs. But if you're going to ignore them, at least ignore the *right* ones:
 
 **Understanding the System:**
-- [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md) — How all the pieces fit together (with diagrams and everything)
-- [Configuration Guide](docs/CONFIGURATION.md) — Every knob, switch, and lever explained
-- [Multi-Protocol Summary](docs/MULTI_PROTOCOL_SUMMARY.md) — All 15 protocols, side by side, questioning my life choices
-- [Protocol Comparison Guide](docs/PROTOCOL_GUIDE.md) — "Which protocol should I use?" answered once and for all
+- [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md): How all the pieces fit together (with diagrams and everything)
+- [Configuration Guide](docs/CONFIGURATION.md): Every knob, switch, and lever explained
+- [Multi-Protocol Summary](docs/MULTI_PROTOCOL_SUMMARY.md): All 15 protocols, side by side, questioning my life choices
+- [Protocol Comparison Guide](docs/PROTOCOL_GUIDE.md): "Which protocol should I use?" answered once and for all
 
 **The Web UI:**
-- [EmberBurn Web UI Guide](docs/PYTHON_WEB_APP.md) — The Flask app in all its fire-themed glory
-- [Web UI Features](docs/WEB_UI.md) — Complete feature documentation
-- [Web UI Quick Start](docs/WEB_UI_QUICKSTART.md) — 60 seconds to dashboard nirvana
+- [EmberBurn Web UI Guide](docs/PYTHON_WEB_APP.md): The Flask app in all its fire-themed glory
+- [Web UI Features](docs/WEB_UI.md): Complete feature documentation
+- [Web UI Quick Start](docs/WEB_UI_QUICKSTART.md): 60 seconds to dashboard nirvana
 
 **Integration Guides (Pick Your Poison):**
-- [Ignition Edge](docs/IGNITION_INTEGRATION.md) — Sparkplug B + OPC UA Client for Inductive's ecosystem
-- [Node-RED](docs/NODERED_INTEGRATION.md) — Flow-based programming for the visual thinkers
-- [MODBUS](docs/MODBUS_INTEGRATION.md) — Legacy PLC integration (1979 called, it wants its protocol back... but it still works)
-- [OPC UA Client Mode](docs/OPCUA_CLIENT_INTEGRATION.md) — Push data to other OPC UA servers
-- [GraphQL](docs/GRAPHQL_INTEGRATION.md) — For when REST feels too pedestrian
-- [InfluxDB + Grafana](docs/INFLUXDB_GRAFANA_INTEGRATION.md) — Time-series storage and those dashboards your boss loves
-- [Alarms & Notifications](docs/ALARMS_NOTIFICATIONS.md) — Get yelled at by email, Slack, or SMS when thresholds breach
+- [Ignition Edge](docs/IGNITION_INTEGRATION.md): Sparkplug B + OPC UA Client for Inductive's ecosystem
+- [Node-RED](docs/NODERED_INTEGRATION.md): Flow-based programming for the visual thinkers
+- [MODBUS](docs/MODBUS_INTEGRATION.md): Legacy PLC integration (1979 called, it wants its protocol back... but it still works)
+- [OPC UA Client Mode](docs/OPCUA_CLIENT_INTEGRATION.md): Push data to other OPC UA servers
+- [GraphQL](docs/GRAPHQL_INTEGRATION.md): For when REST feels too pedestrian
+- [InfluxDB + Grafana](docs/INFLUXDB_GRAFANA_INTEGRATION.md): Time-series storage and those dashboards your boss loves
+- [Alarms & Notifications](docs/ALARMS_NOTIFICATIONS.md): Get yelled at by email, Slack, or SMS when thresholds breach
 
 **Advanced Stuff:**
-- [Data Transformation](docs/DATA_TRANSFORMATION.md) — Unit conversions, scaling, computed tags
-- [Prometheus Integration](docs/PROMETHEUS_INTEGRATION.md) — Monitor the thing that monitors things (inception)
-- [SQLite Persistence](docs/SQLITE_PERSISTENCE.md) — Because data should survive a reboot
-- [ARM64 Deployment](docs/ARM64_DEPLOYMENT.md) — Running on ARM because x86 is basic
+- [Data Transformation](docs/DATA_TRANSFORMATION.md): Unit conversions, scaling, computed tags
+- [Prometheus Integration](docs/PROMETHEUS_INTEGRATION.md): Monitor the thing that monitors things (inception)
+- [SQLite Persistence](docs/SQLITE_PERSISTENCE.md): Because data should survive a reboot
+- [ARM64 Deployment](docs/ARM64_DEPLOYMENT.md): Running on ARM because x86 is basic
 
 ## Project Structure
 
@@ -286,15 +286,15 @@ Found a bug? Feature idea? Existential crisis about protocol selection? PRs are 
 - Tests if you're feeling heroic
 - Your worst industrial automation horror story (mandatory)
 
-Seriously though — if you have an idea, open an issue. The bar for "should we add this" is apparently on the floor, as evidenced by the 15 protocols currently in this repo.
+Seriously though, if you have an idea, open an issue. The bar for "should we add this" is apparently on the floor, as evidenced by the 15 protocols currently in this repo.
 
 ## License
 
-**MIT** — Do literally whatever you want with this. Fork it, ship it, tattoo the source code on your body. I'm not your mom and this is not legal advice.
+**MIT**: Do literally whatever you want with this. Fork it, ship it, tattoo the source code on your body. I'm not your mom and this is not legal advice.
 
 ## One Last Thing
 
-This project started as a weekend hack to test some Ignition tags. It now has more protocols than most enterprise integration platforms, a full web UI, Helm charts, multi-arch Docker images, and documentation that I actually maintain. Feature creep isn't a bug — it's a lifestyle.
+This project started as a weekend hack to test some Ignition tags. It now has more protocols than most enterprise integration platforms, a full web UI, Helm charts, multi-arch Docker images, and documentation that I actually maintain. Feature creep isn't a bug, it's a lifestyle.
 
 If Emberburn saves you from plugging your laptop into a production PLC and accidentally shutting down a conveyor belt (ask me how I know), then it was all worth it.
 

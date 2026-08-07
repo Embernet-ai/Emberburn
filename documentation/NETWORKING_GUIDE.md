@@ -36,7 +36,7 @@ Your app does NOT need its own Ingress, OAuth2 Proxy, or TLS configuration. The 
 
 ---
 
-## 1. MANDATORY: `_helpers.tpl` — Template Helpers
+## 1. MANDATORY: `_helpers.tpl`: Template Helpers
 
 Your chart **must** have a `templates/_helpers.tpl` with at minimum these defines. If your chart already has helpers, verify they produce equivalent output. If they don't, replace them.
 
@@ -103,7 +103,7 @@ app: {{ include "CHARTNAME.fullname" . }}
 
 ---
 
-## 2. MANDATORY: `templates/deployment.yaml` — Pod Spec
+## 2. MANDATORY: `templates/deployment.yaml`: Pod Spec
 
 Your Deployment template must satisfy these exact requirements:
 
@@ -131,7 +131,7 @@ spec:
       {{- include "CHARTNAME.selectorLabels" . | nindent 6 }}
 ```
 
-### 2c. Pod Labels — Including Embernet Discovery Labels
+### 2c. Pod Labels: Including Embernet Discovery Labels
 
 ```yaml
   template:
@@ -144,7 +144,7 @@ spec:
 
 The `embernet.io/store-app: "true"` label is **required**. Without it, the dashboard will not show your app to Operator or Engineer roles. The `embernet.io/app-name` label provides the display name on the dashboard card.
 
-### 2d. Container Ports — CRITICAL
+### 2d. Container Ports: CRITICAL
 
 ```yaml
       containers:
@@ -359,7 +359,7 @@ fullnameOverride: ""
 
 **Key points:**
 - `service.port` must match the port your app actually listens on inside the container
-- `ingress.enabled` should default to `false` — apps accessed through the dashboard proxy don't need their own Ingress
+- `ingress.enabled` should default to `false`: apps accessed through the dashboard proxy don't need their own Ingress
 - `image.tag` can default to empty and fall back to `Chart.AppVersion`
 
 **Action:** Verify your `values.yaml` has these fields. Add any that are missing.
@@ -404,7 +404,7 @@ spec:
 ```
 
 **Rules:**
-- Guarded by `{{- if .Values.ingress.enabled -}}` — off by default
+- Guarded by `{{- if .Values.ingress.enabled -}}`: off by default
 - `ingressClassName: traefik` (K3s built-in)
 - TLS via cert-manager with `letsencrypt-prod` ClusterIssuer
 - Hostname must come from `values.yaml`, never hardcoded (prevents multi-instance conflicts)
@@ -519,7 +519,7 @@ If all 9 checks pass, your chart is compliant with the Embernet Industrial Dashb
 
 ---
 
-### CrashLoopBackOff — liveness probe on wrong port
+### CrashLoopBackOff: liveness probe on wrong port
 
 **Symptom:** Pod starts, runs briefly, then enters `CrashLoopBackOff`. Events show `Liveness probe failed: dial tcp <IP>:<PORT>: connect: connection refused`.
 
@@ -559,7 +559,7 @@ kubectl logs <pod-name> | head -50
 # Look for "Server stopped" appearing right after "Server started"
 ```
 
-**Fix:** Ensure all `stop()` / `stop_all()` calls are **only** inside the `shutdown()` method or signal handler — never in `__init__()`, `setup()`, or callback registration methods.
+**Fix:** Ensure all `stop()` / `stop_all()` calls are **only** inside the `shutdown()` method or signal handler, never in `__init__()`, `setup()`, or callback registration methods.
 
 ---
 
@@ -584,7 +584,7 @@ embernet.io/app-icon: "fire"
 
 **Static assets (CSS/JS/images) broken in iframe:**
 
-When the dashboard proxies to your app via `/api/proxy?target=http://PodIP:PORT`, Flask templates generate absolute paths like `/static/web/css/style.css`. The browser resolves these against the dashboard domain (`https://industrial.embernet.ai/static/web/...`) — not your app. Result: no CSS, no JS, no images.
+When the dashboard proxies to your app via `/api/proxy?target=http://PodIP:PORT`, Flask templates generate absolute paths like `/static/web/css/style.css`. The browser resolves these against the dashboard domain (`https://industrial.embernet.ai/static/web/...`), not your app. Result: no CSS, no JS, no images.
 
 **Fix:** Add a Flask `after_request` middleware that detects the proxy and rewrites all absolute paths to route back through it:
 

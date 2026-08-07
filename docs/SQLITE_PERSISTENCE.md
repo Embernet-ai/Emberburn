@@ -863,7 +863,7 @@ openssl enc -aes-256-cbc -salt -in emberburn_data.db -out emberburn_data.db.enc
 
 *"Listen, if you're not logging it, it didn't happen. And when the auditors show up asking why production went down at 3 AM last Tuesday, you better have an audit trail that tells the story. SQLite isn't sexy, but it's reliable as hell and it's already on your system. Use it."*
 
-— Patrick Ryan, CTO, Fireball Industries
+. Patrick Ryan, CTO, Fireball Industries
 
 *"Oh, and pro tip: Set your retention policy BEFORE you fill up your entire disk with sensor data. I learned that the hard way. Twice. Don't be like me."*
 

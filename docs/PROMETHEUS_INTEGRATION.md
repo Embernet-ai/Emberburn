@@ -779,7 +779,7 @@ remote_write:
 
 *"Listen up - Prometheus ain't just metrics, it's your early warning system for when stuff goes sideways at 3 AM. You wanna know your MQTT publisher died? Check `emberburn_publisher_health`. Wanna know why your ops team is getting paged? Look at `emberburn_alarms_critical`. And for the love of all that is holy, SET UP ALERTS. Dashboards are pretty, but alerts keep you employed."*
 
-— Patrick Ryan, CTO, Fireball Industries
+. Patrick Ryan, CTO, Fireball Industries
 
 *"Oh, and one more thing: If you're running this in production without monitoring, you're not running a system - you're running a ticking time bomb. Prometheus gives you the detonator switch. Use it wisely."*
 

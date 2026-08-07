@@ -269,7 +269,7 @@ embernet:
   appIcon: "fireball.png"  # Icon filename from static/images/
 ```
 
-**Example — multi-instance with device mapping:**
+**Example: multi-instance with device mapping:**
 
 ```bash
 helm install emberburn-line1 ./emberburn \
