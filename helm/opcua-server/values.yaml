@@ -218,12 +218,38 @@ config:
       path: "/metrics"
 
     # Sparkplug B (Ignition Edge)
+    #
+    # group_id IS THE TENANT SLUG. AnvilMQ enforces tenancy by topic prefix
+    # `spBv1.0/<tenant>/...`, and each broker credential carries an ACL confined
+    # to its own tenant (e.g. `spBv1.0/fragua/#`). A group_id that does not match
+    # the credential's tenant is REJECTED by the broker — publishes silently
+    # return failure rather than erroring, so set this deliberately per tenant.
     sparkplug:
       enabled: false
       broker: "mosquitto-mqtt-pod"
       port: 1883
       group_id: "Fireball"
       edge_node_id: "EmberBurn"
+
+      # ── Broker credentials ────────────────────────────────────────────
+      # AnvilMQ requires authentication (userManagement enabled by default
+      # since anvilmq chart 2.0.11); an unauthenticated client connects and is
+      # rejected. Every MQTT publisher needs a credential.
+      #
+      # PREFER existingSecret. This block is rendered into a ConfigMap, so a
+      # password set inline here lands in plaintext in the cluster AND in git.
+      # With existingSecret the chart injects
+      # EMBERBURN_SPARKPLUG_USERNAME / EMBERBURN_SPARKPLUG_PASSWORD from the
+      # Secret via secretKeyRef, and publishers.py prefers those over config —
+      # so the ConfigMap keeps only non-secret settings.
+      #
+      # Same shape as the Ignition-Edge-Pod chart (username + existingSecret +
+      # passwordKey), so both are configured the same way.
+      username: ""
+      password: ""            # inline fallback — do NOT use in a cluster
+      existingSecret: ""      # e.g. "anvilmq-tenant-credentials"
+      usernameKey: "username"
+      passwordKey: "password"
 
     # GraphQL API
     graphql:

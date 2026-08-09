@@ -1147,8 +1147,26 @@ class SparkplugBPublisher(DataPublisher):
         try:
             broker = self.config.get("broker", "localhost")
             port = self.config.get("port", 1883)
-            username = self.config.get("username") or None
-            password = self.config.get("password") or None
+            # Credentials prefer the environment over the config file.
+            #
+            # The Helm chart renders this publisher's settings into a ConfigMap,
+            # so a password in values.yaml would sit in plaintext in the cluster
+            # and in git. Reading EMBERBURN_SPARKPLUG_* first lets the chart
+            # inject them from a Kubernetes Secret via secretKeyRef — the same
+            # existingSecret/passwordKey convention the Ignition-Edge-Pod chart
+            # already uses — while the ConfigMap keeps only non-secret settings.
+            # Falls back to config so a bare local run, and credentials set
+            # through the runtime UI, keep working unchanged.
+            username = (
+                os.getenv("EMBERBURN_SPARKPLUG_USERNAME")
+                or self.config.get("username")
+                or None
+            )
+            password = (
+                os.getenv("EMBERBURN_SPARKPLUG_PASSWORD")
+                or self.config.get("password")
+                or None
+            )
 
             client = sparkplug.Client(
                 client_id=f"{self.group_id}_{self.edge_node_id}",
