@@ -102,7 +102,7 @@ spec:
           the password stays in the Secret. Mirrors the Ignition-Edge-Pod
           existingSecret/passwordKey convention.
         */}}
-        {{- with .Values.emberburn.publishers.sparkplug }}
+        {{- with .Values.config.publishers.sparkplug }}
         {{- if .existingSecret }}
         - name: EMBERBURN_SPARKPLUG_USERNAME
           valueFrom:
