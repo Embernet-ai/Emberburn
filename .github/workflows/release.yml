@@ -99,28 +99,61 @@ jobs:
 
           echo "✅ $IMAGE exists — safe to publish the chart."
 
-      # ── 5. Remove stale packages ──────────────────────────────────
-      - name: Remove old .tgz packages
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          echo "🧹 Cleaning old packages..."
-          rm -f emberburn-*.tgz
-          echo "Done."
-
-      # ── 6. Package the chart ───────────────────────────────────────
+      # ── 5. Package the chart ───────────────────────────────────────
+      #
+      # There used to be a "Remove stale packages" step here running
+      # `rm -f emberburn-*.tgz` before this one. It is gone, and it must not
+      # come back: a Helm repository is a CATALOG, not a pointer at the newest
+      # build. Deleting every package and then regenerating the index from a
+      # directory holding exactly one tarball rewrote index.yaml down to a
+      # single entry on every release.
+      #
+      # The tarballs themselves survived, because the commit step below stages
+      # `git add emberburn-*.tgz` and never staged the deletions — so GitHub
+      # Pages kept serving every old URL with a 200 while index.yaml claimed
+      # they did not exist. That is the worst shape for this bug: nothing 404s,
+      # so nothing looks broken, but `--version 4.1.12` cannot resolve, Rancher
+      # shows one version, and there is no rollback target.
       - name: Helm package
         if: steps.check.outputs.skip == 'false'
         run: |
           helm package helm/opcua-server -d .
           ls -la emberburn-*.tgz
 
-      # ── 7. Rebuild the repository index ────────────────────────────
+      # ── 6. Rebuild the repository index ────────────────────────────
+      #
+      # --merge keeps entries whose tarball is not in the working tree, so the
+      # catalog survives even if a package is ever pruned from the repo. With
+      # every .tgz present this is equivalent to a full regeneration; it is the
+      # belt to the braces of no longer deleting them.
       - name: Helm repo index
         if: steps.check.outputs.skip == 'false'
         run: |
-          helm repo index . --url https://embernet-ai.github.io/Emberburn/
+          if [ -f index.yaml ]; then
+            helm repo index . --url https://embernet-ai.github.io/Emberburn/ \
+              --merge index.yaml
+          else
+            helm repo index . --url https://embernet-ai.github.io/Emberburn/
+          fi
           echo "--- index.yaml ---"
           cat index.yaml
+
+      # ── 7. Refuse to publish an index that lost history ────────────
+      #
+      # The guard the previous behaviour needed. An index with fewer entries
+      # than there are packages means something dropped versions again, and
+      # this fails the build instead of committing the loss.
+      - name: Verify the index still lists every package
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          PKGS=$(ls -1 emberburn-*.tgz | wc -l)
+          ENTRIES=$(grep -cE '^    version:' index.yaml || echo 0)
+          echo "packages=$PKGS index entries=$ENTRIES"
+          if [ "$ENTRIES" -lt "$PKGS" ]; then
+            echo "::error::index.yaml lists $ENTRIES version(s) but $PKGS package(s) exist. \
+          The index dropped history — refusing to publish it."
+            exit 1
+          fi
 
       # ── 8. Commit and push ─────────────────────────────────────────
       - name: Commit updated chart package and index
