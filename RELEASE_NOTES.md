@@ -3,6 +3,27 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.1.13 — 2026-08-09
+
+### Sparkplug Credentials From A Secret
+
+AnvilMQ enforces per-user ACLs, so every MQTT publisher needs a credential and a
+topic namespace that matches it. Both halves existed in the tree and neither was
+in anything deployable.
+
+- **Fixed**: published chart 4.1.12 carried no `EMBERBURN_SPARKPLUG_*` env block.
+  The two Sparkplug commits landed after 4.1.12 was published and `release.yml`
+  skips a version already indexed, so nothing republished. No released image read
+  the variables either, since `docker-publish.yml` only builds on a `v*` tag. A
+  deploy would have come up healthy and published nothing
+- **Added**: `existingSecret` / `usernameKey` / `passwordKey` on the Sparkplug
+  publisher, mirroring the Ignition-Edge-Pod convention. The rendered publishers
+  ConfigMap carries only non-secret settings
+- **Note**: 4.1.13 also derived the Sparkplug `group_id` from
+  `tenantLabels."embernet.ai/tenant"`. That was reverted in 4.1.14, because App
+  Store deploys on this cluster carry no tenantLabels and the derivation broke
+  the install path it was meant to protect
+
 ## v4.1.12 — 2026-07-21
 
 ### A Default Storage Request The Edge Could Not Satisfy
