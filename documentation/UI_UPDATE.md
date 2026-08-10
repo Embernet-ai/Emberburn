@@ -1,4 +1,4 @@
-# Emberburn UI Redesign — OPC UA / IEC 62541 Industrial Protocol Tag Generator
+# Emberburn UI Redesign: OPC UA / IEC 62541 Industrial Protocol Tag Generator
 
 > **Specification for updating the Emberburn web interface to match the Embernet Industrial Dashboard design language, and adding an OPC UA tag generator/creator UI.**
 >
@@ -10,10 +10,10 @@
 
 1. [Overview](#1-overview)
 2. [Current Codebase Inventory](#2-current-codebase-inventory)
-3. [Design Language — Match the Dashboard](#3-design-language--match-the-dashboard)
+3. [Design Language: Match the Dashboard](#3-design-language-match-the-dashboard)
 4. [Dark Mode Implementation](#4-dark-mode-implementation)
 5. [Header & Navigation Migration](#5-header--navigation-migration)
-6. [OPC UA Tag Generator — Feature Spec](#6-opc-ua-tag-generator--feature-spec)
+6. [OPC UA Tag Generator: Feature Spec](#6-opc-ua-tag-generator-feature-spec)
 7. [Tag Generator UI Layout](#7-tag-generator-ui-layout)
 8. [OPC UA Server Integration (Existing)](#8-opc-ua-server-integration-existing)
 9. [Tag Data Model](#9-tag-data-model)
@@ -27,10 +27,10 @@
 
 **Emberburn** is an Embernet industrial application deployed via Helm chart. This document specifies:
 
-1. **UI redesign** — Restyle Emberburn's existing Python Flask web interface to match the Embernet Industrial Dashboard (dark mode default, same color palette, header-based nav instead of sidebar, Embernet/Fireball branding)
-2. **OPC UA Tag Generator** — Extend the existing tag *monitor* into a tag *generator/creator* UI for creating, browsing, and managing OPC UA / IEC 62541 (commonly referenced as "APCUA/15") industrial protocol tags via the already-running `opcua` Python server
+1. **UI redesign**: Restyle Emberburn's existing Python Flask web interface to match the Embernet Industrial Dashboard (dark mode default, same color palette, header-based nav instead of sidebar, Embernet/Fireball branding)
+2. **OPC UA Tag Generator**: Extend the existing tag *monitor* into a tag *generator/creator* UI for creating, browsing, and managing OPC UA / IEC 62541 (commonly referenced as "APCUA/15") industrial protocol tags via the already-running `opcua` Python server
 
-The goal is visual and functional consistency across the entire Embernet platform. When a user clicks "Launch UI" on Emberburn from the Industrial Dashboard, the app should feel like a native extension of the dashboard — not a separate product.
+The goal is visual and functional consistency across the entire Embernet platform. When a user clicks "Launch UI" on Emberburn from the Industrial Dashboard, the app should feel like a native extension of the dashboard, not a separate product.
 
 ---
 
@@ -52,9 +52,9 @@ The goal is visual and functional consistency across the entire Embernet platfor
 
 | Route | Template | Purpose |
 |-------|----------|---------|
-| `/` | `index.html` | Dashboard — stat cards (Active Tags, Publishers, Alarms) + live tag table |
+| `/` | `index.html` | Dashboard, stat cards (Active Tags, Publishers, Alarms) + live tag table |
 | `/dashboard` | `dashboard.html` | Alternate dashboard view |
-| `/tags` | `tags.html` | Tag Discovery & Monitor — search, category filter, tag table with details modal |
+| `/tags` | `tags.html` | Tag Discovery & Monitor, search, category filter, tag table with details modal |
 | `/publishers` | `publishers.html` | Publisher management grid (MQTT, InfluxDB, Modbus, etc.) |
 | `/alarms` | `alarms.html` | Active alarm monitoring |
 | `/config` | `config.html` | Server info + quick actions (Restart, Export, Import, Logs) |
@@ -63,9 +63,9 @@ The goal is visual and functional consistency across the entire Embernet platfor
 
 | File | Purpose |
 |------|---------|
-| `api.js` | `EmberBurnAPI` class — wraps `/api/tags`, `/api/publishers`, `/api/alarms/active`, `/api/health` |
-| `dashboard.js` | Dashboard auto-updater — fetches tags/publishers/alarms every 2s |
-| `tags.js` | Tag discovery via `/api/tags/discovery` — search, category filter, details modal |
+| `api.js` | `EmberBurnAPI` class, wraps `/api/tags`, `/api/publishers`, `/api/alarms/active`, `/api/health` |
+| `dashboard.js` | Dashboard auto-updater, fetches tags/publishers/alarms every 2s |
+| `tags.js` | Tag discovery via `/api/tags/discovery`, search, category filter, details modal |
 | `publishers.js` | Publisher grid rendering and toggle |
 | `alarms.js` | Alarm list rendering |
 | `app.js` | Global utilities (escapeHTML, formatTimestamp, AutoUpdater class) |
@@ -141,11 +141,11 @@ The OPC UA server **already exists and works**. Key capabilities:
 - Publisher integration (MQTT, REST, GraphQL, Prometheus, etc.)
 - Runs on `opc.tcp://0.0.0.0:4840/freeopcua/server/`
 
-**What we are adding:** A web UI to create/edit/delete tags at runtime via the existing `write_tag()` and server APIs — not a new OPC UA server.
+**What we are adding:** A web UI to create/edit/delete tags at runtime via the existing `write_tag()` and server APIs, not a new OPC UA server.
 
 ---
 
-## 3. Design Language — Match the Dashboard
+## 3. Design Language: Match the Dashboard
 
 ### Color Palette Migration
 
@@ -218,7 +218,7 @@ body {
 
 ### Card Style
 
-The existing `.card` in `style.css` is close — update border-radius and hover behavior:
+The existing `.card` in `style.css` is close, update border-radius and hover behavior:
 
 ```css
 .card {
@@ -363,7 +363,7 @@ Delete these rule blocks:
 - `.sidebar .sidebar-footer`
 - `.main-content` margin-left rule
 
-### Add to `base.html` — New Header
+### Add to `base.html`: New Header
 
 Replace the sidebar with this header block before `{% block content %}`:
 
@@ -399,7 +399,7 @@ Replace the sidebar with this header block before `{% block content %}`:
 
 > **Note:** URLs use Flask's `url_for('web_ui.static', ...)` because `web_app.py` registers the Blueprint with `static_url_path='/static/web'`. Image files must be placed in `static/images/`.
 
-### Add to `style.css` — Header Styles
+### Add to `style.css`: Header Styles
 
 ```css
 /* ── Header (replaces sidebar) ── */
@@ -500,18 +500,18 @@ Create directory `static/images/` and copy these from the Industrial Dashboard's
 
 | File | Purpose |
 |------|---------|
-| `embernet-white.png` | Header logo (dark mode — default) |
+| `embernet-white.png` | Header logo (dark mode, default) |
 | `embernet.png` | Header logo (light mode) |
 | `fireball.png` | Company logo (header right) |
 | `favicon-32x32.png` | Browser tab icon |
 
 ---
 
-## 6. OPC UA Tag Generator — Feature Spec
+## 6. OPC UA Tag Generator: Feature Spec
 
 ### What Is This?
 
-An **OPC UA Tag Generator** is a visual tool for creating and managing OPC UA (IEC 62541) address space nodes — the "tags" that PLC systems, SCADA software, and industrial equipment read/write via the OPC UA protocol.
+An **OPC UA Tag Generator** is a visual tool for creating and managing OPC UA (IEC 62541) address space nodes, the "tags" that PLC systems, SCADA software, and industrial equipment read/write via the OPC UA protocol.
 
 ### Key Capabilities
 
@@ -548,7 +548,7 @@ An **OPC UA Tag Generator** is a visual tool for creating and managing OPC UA (I
 
 ## 7. Tag Generator UI Layout
 
-### Main View — Tag Dashboard
+### Main View: Tag Dashboard
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -651,7 +651,7 @@ An **OPC UA Tag Generator** is a visual tool for creating and managing OPC UA (I
 
 ## 8. OPC UA Server Integration (Existing)
 
-### Architecture — Already Built
+### Architecture: Already Built
 
 Emberburn **already has** a fully functional OPC UA server in `opcua_server.py`. No new server implementation is needed.
 
@@ -690,7 +690,7 @@ Emberburn **already has** a fully functional OPC UA server in `opcua_server.py`.
 | `get_default_tags()` | ~95 | Fallback 5-tag config if JSON not found |
 | `create_server()` | ~175 | Builds OPC UA address space from tag config |
 | `write_tag(name, value)` | ~250 | Write value to existing tag OR create new tag at runtime |
-| `update_tags()` | ~295 | Simulation loop — random/increment/sine per tag config |
+| `update_tags()` | ~295 | Simulation loop, random/increment/sine per tag config |
 | `generate_random_value()` | ~335 | Random value within min/max range |
 | `generate_increment_value()` | ~355 | Counter with optional rollover |
 | `generate_sine_value()` | ~385 | Sine wave generator |
@@ -782,8 +782,8 @@ These already work and the Tag Generator builds on top of them:
 |--------|----------|--------|----------|
 | `GET` | `/api/tags` | **EXISTS** | `api.getTags()` |
 | `GET` | `/api/tags/:name` | **EXISTS** | `api.getTag(name)` |
-| `POST` | `/api/tags/:name` | **EXISTS** | `api.writeTag(name, value)` — writes value to tag |
-| `GET` | `/api/tags/discovery` | **EXISTS** | Used by `tags.js` — returns metadata (type, units, min/max, category, quality) |
+| `POST` | `/api/tags/:name` | **EXISTS** | `api.writeTag(name, value)`, writes value to tag |
+| `GET` | `/api/tags/discovery` | **EXISTS** | Used by `tags.js`, returns metadata (type, units, min/max, category, quality) |
 | `GET` | `/api/publishers` | **EXISTS** | `api.getPublishers()` |
 | `POST` | `/api/publishers/:name/toggle` | **EXISTS** | `api.togglePublisher(name)` |
 | `GET` | `/api/alarms/active` | **EXISTS** | `api.getActiveAlarms()` |
@@ -795,12 +795,12 @@ Add these to the REST API publisher (or add a new Flask Blueprint):
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/tags/create` | **NEW** — Create a new OPC UA tag (calls `write_tag()`) |
-| `PUT` | `/api/tags/:name` | **NEW** — Update tag properties (type, description, units, simulation) |
-| `DELETE` | `/api/tags/:name` | **NEW** — Remove tag from address space |
-| `POST` | `/api/tags/bulk` | **NEW** — Bulk create tags (JSON array or CSV) |
-| `GET` | `/api/tags/export?format=csv` | **NEW** — Export current tag config as CSV/JSON |
-| `POST` | `/api/tags/import` | **NEW** — Import tags from CSV/JSON upload |
+| `POST` | `/api/tags/create` | **NEW**: Create a new OPC UA tag (calls `write_tag()`) |
+| `PUT` | `/api/tags/:name` | **NEW**: Update tag properties (type, description, units, simulation) |
+| `DELETE` | `/api/tags/:name` | **NEW**: Remove tag from address space |
+| `POST` | `/api/tags/bulk` | **NEW**: Bulk create tags (JSON array or CSV) |
+| `GET` | `/api/tags/export?format=csv` | **NEW**: Export current tag config as CSV/JSON |
+| `POST` | `/api/tags/import` | **NEW**: Import tags from CSV/JSON upload |
 
 ### Tag Groups
 
@@ -967,12 +967,12 @@ containers:
         protocol: TCP
 ```
 
-### Service — Already Has Multiple Port Services
+### Service: Already Has Multiple Port Services
 
 The chart already has separate service templates:
-- `service-webui.yaml` — port 5000
-- `service-opcua.yaml` — port 4840
-- `service-prometheus.yaml` — port 8000
+- `service-webui.yaml`: port 5000
+- `service-opcua.yaml`: port 4840
+- `service-prometheus.yaml`: port 8000
 
 These are correct. The Web UI service is what the dashboard's "Launch UI" proxies to.
 
@@ -986,7 +986,7 @@ helm/opcua-server/templates/namespace.yaml
 helm install emberburn ./helm/opcua-server -n emberburn --create-namespace
 ```
 
-### Dynamic Resource Names — Already Correct
+### Dynamic Resource Names: Already Correct
 
 The existing `_helpers.tpl` uses `{{ include "emberburn.fullname" . }}` which is correct.
 
@@ -1011,20 +1011,20 @@ Files to edit: `static/css/style.css`, `templates/base.html`, all 6 templates
 - [ ] Implement dark mode toggle with `localStorage` (Section 4)
 - [ ] Update `.main-content` to `margin-left: 0` (was 240px for sidebar)
 - [ ] Verify all 6 existing pages render correctly with new layout
-- [ ] Test "Launch UI" through dashboard proxy — check font loading, image paths, relative URLs
+- [ ] Test "Launch UI" through dashboard proxy: check font loading, image paths, relative URLs
 
 ### Phase 2: Tag Generator Backend (Estimate: 2-3 days)
 
 Files to edit: `web_app.py`, `opcua_server.py`
 
 - [ ] Add `/tag-generator` route to `web_app.py` returning new `tag_generator.html` template
-- [ ] Add `POST /api/tags/create` endpoint — accepts `{name, type, initial_value, description, units, category, simulate, simulation_type, min, max}`
+- [ ] Add `POST /api/tags/create` endpoint: accepts `{name, type, initial_value, description, units, category, simulate, simulation_type, min, max}`
 - [ ] Wire `POST /api/tags/create` to call `opcua_server.write_tag()` + update `self.tag_metadata`
-- [ ] Add `DELETE /api/tags/:name` endpoint — removes from `self.tags` and `self.tag_metadata`
-- [ ] Add `PUT /api/tags/:name` endpoint — update metadata (description, units, simulation config)
-- [ ] Add `POST /api/tags/bulk` endpoint — accepts JSON array of tag definitions
-- [ ] Add `GET /api/tags/export?format=csv` — exports current `tags_config.json` + runtime tags as CSV
-- [ ] Add `POST /api/tags/import` — accepts CSV/JSON file upload, creates tags
+- [ ] Add `DELETE /api/tags/:name` endpoint: removes from `self.tags` and `self.tag_metadata`
+- [ ] Add `PUT /api/tags/:name` endpoint: update metadata (description, units, simulation config)
+- [ ] Add `POST /api/tags/bulk` endpoint: accepts JSON array of tag definitions
+- [ ] Add `GET /api/tags/export?format=csv`: exports current `tags_config.json` + runtime tags as CSV
+- [ ] Add `POST /api/tags/import`: accepts CSV/JSON file upload, creates tags
 - [ ] Add persistence: write runtime tag changes back to `tags_config.json` (or a `tags_runtime.json`)
 - [ ] Add tag template presets (3-Phase Motor, Tank Level, Modbus) as JSON files in `config/`
 
@@ -1032,13 +1032,13 @@ Files to edit: `web_app.py`, `opcua_server.py`
 
 Files to create: `templates/tag_generator.html`, `static/js/tag_generator.js`
 
-- [ ] Create `tag_generator.html` — extends `base.html`, has stat cards + quick actions + tag table
-- [ ] Create `tag_generator.js` — mirrors patterns from `dashboard.js` (AutoUpdater, parallel fetch)
-- [ ] Build "Create Tag" modal — form with name, type (dropdown), initial value, units, description, category, simulation config
+- [ ] Create `tag_generator.html`: extends `base.html`, has stat cards + quick actions + tag table
+- [ ] Create `tag_generator.js`: mirrors patterns from `dashboard.js` (AutoUpdater, parallel fetch)
+- [ ] Build "Create Tag" modal: form with name, type (dropdown), initial value, units, description, category, simulation config
 - [ ] Build tag table with inline edit, delete, write-value actions
-- [ ] Build bulk import UI — file upload (CSV/JSON) with preview table before confirm
-- [ ] Build export button — downloads CSV/JSON
-- [ ] Build tag template selector — dropdown of presets, preview of tags to be created, apply button
+- [ ] Build bulk import UI: file upload (CSV/JSON) with preview table before confirm
+- [ ] Build export button: downloads CSV/JSON
+- [ ] Build tag template selector: dropdown of presets, preview of tags to be created, apply button
 - [ ] Add `api.createTag()`, `api.deleteTag()`, `api.updateTag()`, `api.bulkCreateTags()`, `api.exportTags()`, `api.importTags()` to `api.js`
 
 ### Phase 4: Helm Chart Fixes (Estimate: 1 day)
@@ -1062,7 +1062,7 @@ Create `static/images/` (does not currently exist) and copy from the Industrial 
 
 | File | Purpose | Destination |
 |------|---------|-------------|
-| `embernet-white.png` | Header logo (dark mode — default) | `static/images/embernet-white.png` |
+| `embernet-white.png` | Header logo (dark mode, default) | `static/images/embernet-white.png` |
 | `embernet.png` | Header logo (light mode) | `static/images/embernet.png` |
 | `fireball.png` | Company logo (header right) | `static/images/fireball.png` |
 | `favicon-32x32.png` | Browser tab icon | `static/images/favicon-32x32.png` |
@@ -1076,7 +1076,7 @@ Create `static/images/` (does not currently exist) and copy from the Industrial 
 | `static/css/style.css` | **EDIT** | Replace `:root` vars, remove sidebar styles, add header styles |
 | `templates/base.html` | **EDIT** | Remove sidebar, add header + footer, add Inter font link |
 | `templates/index.html` | **VERIFY** | Should work as-is with new `base.html` layout |
-| `templates/tags.html` | **VERIFY** | Should work as-is — tag monitor remains |
+| `templates/tags.html` | **VERIFY** | Should work as-is, tag monitor remains |
 | `templates/publishers.html` | **VERIFY** | Should work as-is |
 | `templates/alarms.html` | **VERIFY** | Should work as-is |
 | `templates/config.html` | **EDIT** | Update inline colors from `var(--flame-orange)` → `var(--ember-red)` |
@@ -1095,10 +1095,10 @@ Create `static/images/` (does not currently exist) and copy from the Industrial 
 
 The Emberburn UI update achieves two goals:
 
-1. **Visual consistency** — Emberburn's existing fire/orange-themed sidebar layout is migrated to the Embernet red/dark horizontal-header design system. The current `static/css/style.css` variables map cleanly (see Section 3 table). The sidebar in `templates/base.html` becomes a header bar. All 6 existing views continue working with updated styling.
+1. **Visual consistency**: Emberburn's existing fire/orange-themed sidebar layout is migrated to the Embernet red/dark horizontal-header design system. The current `static/css/style.css` variables map cleanly (see Section 3 table). The sidebar in `templates/base.html` becomes a header bar. All 6 existing views continue working with updated styling.
 
-2. **OPC UA Tag Generator** — The existing tag *monitor* (`/tags` → `tags.html` → `tags.js`) and OPC UA server (`opcua_server.py` with `write_tag()` that already creates tags dynamically) are extended with a new Tag Generator page that allows creating, editing, deleting, and bulk-importing OPC UA tags at runtime. No new OPC UA server library is needed — the Python `opcua` package and server already work.
+2. **OPC UA Tag Generator**: The existing tag *monitor* (`/tags` → `tags.html` → `tags.js`) and OPC UA server (`opcua_server.py` with `write_tag()` that already creates tags dynamically) are extended with a new Tag Generator page that allows creating, editing, deleting, and bulk-importing OPC UA tags at runtime. No new OPC UA server library is needed, the Python `opcua` package and server already work.
 
-3. **Helm Chart Fix** — The `namespace.yaml` template in `helm/opcua-server/templates/` is deleted to prevent the namespace ownership error that causes installation failures when the namespace already exists. - MAY BE COMPLETED ALREADY
+3. **Helm Chart Fix**: The `namespace.yaml` template in `helm/opcua-server/templates/` is deleted to prevent the namespace ownership error that causes installation failures when the namespace already exists. - MAY BE COMPLETED ALREADY
 
-The result is a unified industrial platform where the dashboard provides cluster management and app deployment, and Emberburn provides the protocol-level tag engineering that industrial systems need — with a consistent look and feel across both.
+The result is a unified industrial platform where the dashboard provides cluster management and app deployment, and Emberburn provides the protocol-level tag engineering that industrial systems need, with a consistent look and feel across both.

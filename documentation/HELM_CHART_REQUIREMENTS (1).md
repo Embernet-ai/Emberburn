@@ -1,6 +1,6 @@
 # Embernet Helm Chart Compatibility Requirements
 
-> ## ⚠️ PARTIALLY SUPERSEDED — verify against the source-derived contract
+> ## ⚠️ PARTIALLY SUPERSEDED: verify against the source-derived contract
 >
 > The **EmberNET App Store Chart Contract** (generated 2026-07-19 against dashboard
 > v4.1.34, derived from the dashboard Go source rather than from documentation) is
@@ -9,9 +9,9 @@
 > | This document says | The code actually does |
 > |---|---|
 > | `embernet.ai/app-icon` is a **label**, resolved from `pod.Labels` (§2, §7, §11) | It is an **annotation**, read at `client.go:307-309` from **both** pod and Service annotations. Service-only leaves node cards showing a generic glyph |
-> | Icon value is an "emoji or icon identifier" | Annotation values have no charset restriction, so a URL or `data:` URI is legal — and necessary, since a label value cannot contain `/` or `:` |
+> | Icon value is an "emoji or icon identifier" | Annotation values have no charset restriction, so a URL or `data:` URI is legal, and necessary, since a label value cannot contain `/` or `:` |
 > | `embernet.ai/tenant` is not listed as required | It is **mandatory**. Injected via `.Values.tenantLabels`; a chart that drops it has its Services filtered out of every tenant-scoped view (`services.go:226`) and POD SHELL returns 403 (`shell.go:602-615`) |
-> | `gui-type: "web+shell"` is a valid value | Rejected by kube-apiserver — `+` is not in the K8s label-value character class |
+> | `gui-type: "web+shell"` is a valid value | Rejected by kube-apiserver, `+` is not in the K8s label-value character class |
 >
 > Following this document's icon guidance is what produced the broken app tile
 > fixed in EmberBurn v4.1.9. Treat the sections below as historical context and
@@ -88,7 +88,7 @@ spec:
 
 - Must be a string (K8s labels are always strings): `"1880"`, `"3000"`, `"9090"`
 - If the chart has no web UI (e.g., PostgreSQL, Mosquitto), use `embernet.ai/gui-type: "shell"` or `"none"` instead and omit this label
-- **Fallback behavior:** If omitted, the dashboard scans all container ports and picks the first one — this is unreliable for multi-port pods
+- **Fallback behavior:** If omitted, the dashboard scans all container ports and picks the first one, this is unreliable for multi-port pods
 
 ```yaml
 labels:
@@ -218,7 +218,7 @@ These are optional but strongly recommended for production deployments.
 
 **Purpose:** Human-readable name shown in the dashboard UI. Supports multi-instance disambiguation.
 
-- Use as an **annotation** (not a label) — annotations have no 63-character limit
+- Use as an **annotation** (not a label): annotations have no 63-character limit
 - Example: `"Plant Floor / Node-RED Production"` or `"Building-A PostgreSQL"`
 
 ```yaml
@@ -256,7 +256,7 @@ labels:
 
 ## 5. Auto-Applied Labels (Store Deploy)
 
-When the dashboard's App Store deploys a chart, it creates a HelmChart CRD with these labels on the **CRD object itself** (not the pod). The chart does NOT need to set these — they are injected by the deploy pipeline:
+When the dashboard's App Store deploys a chart, it creates a HelmChart CRD with these labels on the **CRD object itself** (not the pod). The chart does NOT need to set these, they are injected by the deploy pipeline:
 
 | Label | Source | Purpose |
 |-------|--------|---------|
@@ -326,7 +326,7 @@ The dashboard reads metadata in this exact order. First match wins.
 
 The dashboard provides WebSocket-based terminal access (`xterm.js`) into pods. Security rules:
 
-1. **`embernet.ai/store-app: "true"` is required** — pods in system namespaces (`kube-system`, `cattle-system`, `longhorn-system`, `fireball-system`, `cert-manager`) are blocked from shell access unless they carry this label
+1. **`embernet.ai/store-app: "true"` is required**: pods in system namespaces (`kube-system`, `cattle-system`, `longhorn-system`, `fireball-system`, `cert-manager`) are blocked from shell access unless they carry this label
 2. The shell connects to the pod's **first container** by default
 3. Read-only shells are enforced for Operator role users
 4. The pod must have a shell binary available (`/bin/sh` or `/bin/bash`)
@@ -362,7 +362,7 @@ spec:
 ### Compatibility notes:
 - Chart must be a standard Helm 3 chart (Chart.yaml `apiVersion: v2`)
 - The K3s Helm controller installs into namespace `default` unless overridden
-- `valuesContent` is YAML merged with the chart's `values.yaml` — your chart must not break when extra keys are injected
+- `valuesContent` is YAML merged with the chart's `values.yaml`: your chart must not break when extra keys are injected
 
 ---
 

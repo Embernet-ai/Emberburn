@@ -137,7 +137,7 @@ labels:
 
 For each chart repository:
 
-### Step 1 — Add labels to the Deployment pod template
+### Step 1: Add labels to the Deployment pod template
 
 ```yaml
 # templates/deployment.yaml
@@ -157,7 +157,7 @@ spec:
         {{- end }}
 ```
 
-### Step 2 — Add defaults to values.yaml
+### Step 2: Add defaults to values.yaml
 
 ```yaml
 # values.yaml
@@ -167,7 +167,7 @@ guiPort: 8080     # Port for the web UI (omit for shell/none)
 nodeSelector: {}  # Required for dashboard node-targeting
 ```
 
-### Step 3 — Ensure the Service selector matches
+### Step 3: Ensure the Service selector matches
 
 ```yaml
 # templates/service.yaml

@@ -7,14 +7,14 @@
 
 ### A Default Storage Request The Edge Could Not Satisfy
 
-- **Fixed** — the persistent volume claim asked for more than an edge cluster
+- **Fixed**: the persistent volume claim asked for more than an edge cluster
   can give it. Longhorn on the Fragua edges runs `default-replica-count=3` at
   `storage-over-provisioning-percentage=100` with most of each node's disk
   already scheduled, so the claim sat Pending on `insufficient storage; precheck
   new replica failed` and the pod never started. EmberBurn's SQLite persistence
   file is small; the old request was sized for a historian it does not run. The
   default is now **2Gi**, which fits what an edge node actually has
-- **Docs** — the OPC UA hardening section now describes what the chunk guard
+- **Docs**: the OPC UA hardening section now describes what the chunk guard
   protects and why, without printing a working recipe for the attack it blocks
 
 ## v4.1.11 — 2026-07-21
@@ -25,19 +25,19 @@
 the four missed gates were missed because the checklist itself was wrong, so this
 release fixed the checklist rather than the symptoms.
 
-- **Remote names were backwards** — the checklist named the personal fork as the
+- **Remote names were backwards**: the checklist named the personal fork as the
   org repo and vice versa, so every push instruction pointed at the wrong place.
   That is how the fork drifted 17 commits behind between v4.0.8 and v4.1.10. It
   now says to check `git remote -v` and go by URL, not by name
-- **Push order was actively dangerous** — it said to push `main --tags` in one
+- **Push order was actively dangerous**: it said to push `main --tags` in one
   shot. `release.yml` publishes the chart on push-to-main while
   `docker-publish.yml` only builds on a `v*` tag, so that races them and can
   publish a chart referencing an image that does not exist. That is precisely
   what the v4.0.9 ImagePullBackOff was. Replaced with branch → tag → **wait for
   the image** → merge → sync-fork
-- **§7 was self-contradictory** — it demanded both adding and removing the
+- **§7 was self-contradictory**: it demanded both adding and removing the
   current version's release-notes entry. Resolved into the lag rule above
-- **Added a hard gate** — `release.yml` now refuses to publish a chart whose
+- **Added a hard gate**: `release.yml` now refuses to publish a chart whose
   `appVersion` image is absent from GHCR, so getting the order wrong costs a red
   build instead of a broken deploy
 
@@ -48,13 +48,13 @@ release fixed the checklist rather than the symptoms.
 4.1.9 shipped a known-unfixed CVE with a note saying "keep 4840 off untrusted
 networks." That is not a fix, it is a disclaimer.
 
-- **Root cause**: CVE-2022-25304 — python-opcua accumulates incoming chunks in
+- **Root cause**: CVE-2022-25304, python-opcua accumulates incoming chunks in
   `SecureConnection._incoming_parts`, a plain list that is only cleared when a
   Final or Abort chunk arrives. A client opens a session, streams unlimited
   Intermediate chunks, never terminates the message, and the process dies.
   Unauthenticated. Affects every version of `opcua` and of its successor
   `asyncua`, so there is nothing to upgrade to
-- **Fixed** — `apply_chunk_limits()` in `opcua_server.py` caps chunk count and
+- **Fixed**, `apply_chunk_limits()` in `opcua_server.py` caps chunk count and
   total bytes per message and raises `UaError` past the limit, which python-opcua
   already handles by tearing down that channel. One abusive client loses its
   connection; everyone else keeps getting data. The library is pure Python and we
@@ -64,13 +64,13 @@ networks." That is not a fix, it is a disclaimer.
   **unpatched** library first and shows it retaining 5000 chunks, then installs
   the guard and shows the flood cut off at the limit, then confirms legitimate
   multi-chunk messages still assemble
-- **Added** `.github/workflows/security-audit.yml` — `pip-audit --strict` on every
+- **Added** `.github/workflows/security-audit.yml`, `pip-audit --strict` on every
   requirements change, on PRs, and weekly so a CVE published against an unchanged
   pin still surfaces. It also runs the chunk-limit test, so if the mitigation ever
   stops being wired the build says so. 4.1.9's two transitive CVEs went unnoticed
   because nothing was checking
 - **Note**: `paho-mqtt` stays pinned `<2` for `pysparkplug`. Confirmed 1.6.1 has
-  zero known vulnerabilities — a maintenance constraint, not a security one
+  zero known vulnerabilities, a maintenance constraint, not a security one
 - **Chart version**: `4.1.10`, appVersion: `4.1.10`
 - Image tag: `ghcr.io/embernet-ai/emberburn:4.1.10`
 - Helm chart: `https://embernet-ai.github.io/Emberburn/emberburn-4.1.10.tgz`
@@ -82,7 +82,7 @@ networks." That is not a fix, it is a disclaimer.
 
 ### The Icons Never Loaded, The Writes Never Worked, GraphQL And Sparkplug Never Started
 
-Audited the chart against the EmberNET App Store contract — the one generated
+Audited the chart against the EmberNET App Store contract, the one generated
 from the dashboard Go source, not the docs. Found four gaps. Then went looking
 at the app and found worse.
 
@@ -91,22 +91,22 @@ at the app and found worse.
 - **Root cause**: Every icon in this product pointed at
   `avatars.githubusercontent.com`. We ship into air-gapped clusters. There is no
   public internet. The tile has never rendered.
-- **Fixed** `Chart.yaml` icon and the `embernet.ai/app-icon` annotation — both
+- **Fixed** `Chart.yaml` icon and the `embernet.ai/app-icon` annotation: both
   are embedded data URIs now. No network, no origin assumptions, no excuses
 - **Fixed** `app-icon` being Service-only. Contract §9.5: it is read from pod
   annotations too, and Service-only leaves node cards showing a generic glyph
 - **Root cause** (header logo): `base.html` reassigned `logo.src` in JavaScript
   on page load and theme toggle. The proxy rewriter matches `src="/` in markup,
-  not `logo.src = "/` in a script — so the JS overwrote the rewritten path with a
+  not `logo.src = "/` in a script, so the JS overwrote the rewritten path with a
   raw absolute one and killed the logo behind the dashboard proxy. Both
   assignments were dead code; same image in both themes
 - **Fixed** the Google Fonts `@import` in `style.css`. Also unreachable
   air-gapped, which is why the type has been rendering in fallback fonts
-- **Note**: `embernet.appIcon` defaulted to `fireball.png` — the Fireball
+- **Note**: `embernet.appIcon` defaulted to `fireball.png`, the Fireball
   Industries corporate shield, not the EmberBurn logo. Wrong brand on the tile
   even if it had loaded
 
-**Tenant labels — the one that actually mattered**
+**Tenant labels: the one that actually mattered**
 
 - **Root cause**: `.Values.tenantLabels` was never consumed anywhere in the
   chart. The dashboard injects it at deploy (`store.go:1304-1315`) and we threw
@@ -114,7 +114,7 @@ at the app and found worse.
 - **Result**: Services filtered out of every tenant-scoped view
   (`services.go:226`) and POD SHELL returning 403. Visible to SuperAdmin, invisible
   to the customer who deployed it. Looks fine from our side. Broken from theirs
-- **Fixed** — rendered onto the pod template and all three Services, declared in
+- **Fixed**: rendered onto the pod template and all three Services, declared in
   `values.yaml`
 
 **The write path**
@@ -136,12 +136,12 @@ at the app and found worse.
 - **Root cause**: `flask_graphql` pins `graphql-core<3`; `graphene` 3.x needs
   `graphql-core>=3.1`. They cannot coexist. GraphQL has been in the protocol table
   since day one and has never once started in a shipped image
-- **Fixed** — ported onto graphene 3 with a plain Flask view over
+- **Fixed**: ported onto graphene 3 with a plain Flask view over
   `schema.execute()`. No unmaintained middleman this time
 - **Fixed** two bugs that would have broken it anyway: resolvers read
   `self.tags_data` when graphene passes the root value as the first arg, and
   `tag_metadata` was snapshotted before the server attaches it
-- **Changed** GraphiQL to default off — its assets come from a CDN. The API does
+- **Changed** GraphiQL to default off: its assets come from a CDN. The API does
   not
 
 **Security**
@@ -150,7 +150,7 @@ at the app and found worse.
   polling; the pod injects the token into its own HTML so the iframe works with no
   login and no usernames. `security.uiWrites: false` drops the UI to read-only for
   internet-facing deployments while automation keeps writing
-- **Added** OPC UA signing, encryption and username auth. Opt-in, off by default —
+- **Added** OPC UA signing, encryption and username auth. Opt-in, off by default,
   turning it on breaks every anonymous SCADA client until it is reconfigured.
   Fails loudly at startup if half-configured instead of quietly serving plaintext
 - **Fixed** CORS being open to every origin. Same-origin by default now
@@ -160,31 +160,31 @@ at the app and found worse.
 - **Root cause**: the chart publishes on push-to-main; the image only builds on a
   `v*` tag. Release them out of order and you ship a chart pointing at an image
   that does not exist. That is what 4.0.9 was
-- **Fixed** — `release.yml` now refuses to package unless `appVersion` matches the
+- **Fixed**, `release.yml` now refuses to package unless `appVersion` matches the
   values image tag *and* `ghcr.io/embernet-ai/emberburn:<version>` is already
   published. Order is: push the tag, wait for the build, merge the chart bump
 
 **Everything else**
 
-- **Fixed** the `'REST API'` publisher key that could never match —
+- **Fixed** the `'REST API'` publisher key that could never match.
   `RESTAPIPublisher` stems to `RESTAPI`. UI showed "RESTAPI", icon fell back to a
   generic glyph, toggle always returned `success: false`. The map was duplicated
   in two methods, which is how one drifted
-- **Fixed** publisher status being a one-time snapshot — the UI re-polled every 2s
+- **Fixed** publisher status being a one-time snapshot, the UI re-polled every 2s
   and re-rendered stale data, so toggles never appeared to do anything
 - **Fixed** the Prometheus tag gauge hardcoded to `1` with a `# Placeholder`
   comment, and a histogram that was created and never observed
 - **Fixed** `importTags()` posting to `/api/tags/import`, a route that has never
   existed
-- **Fixed** absolute `/api/...` paths breaking behind the dashboard proxy — and
+- **Fixed** absolute `/api/...` paths breaking behind the dashboard proxy, and
   the relative-path workaround, which was also wrong
 - **Replaced** the four "Feature coming soon!" buttons on the Config page. Export
   Config and View Logs are real, backed by new `/api/config` (credentials
-  redacted) and `/api/logs`. Restart and Import were deleted rather than faked —
+  redacted) and `/api/logs`. Restart and Import were deleted rather than faked,
   config is Helm-managed
 - **Fixed** modal CSS living inline in one template, so every other page using
   `.modal-overlay` rendered unstyled
-- **Added** `websocket-server` and `twilio` to requirements — both missing from the
+- **Added** `websocket-server` and `twilio` to requirements: both missing from the
   shipped image, so the WebSocket publisher and alarm SMS could never start
 - **Fixed** `replicas` fighting the HPA on every upgrade, and a NetworkPolicy that
   silently killed Prometheus scraping by omitting port 8000
@@ -192,16 +192,16 @@ at the app and found worse.
   three stale UTF-16 PowerShell error dumps from a machine that no longer exists
 - **Added** `version.py` as one source of truth. `setup.py` had drifted to 4.0.7
   while the chart was on 4.1.3
-**Sparkplug B — 15/15 protocols now actually run**
+**Sparkplug B: 15/15 protocols now actually run**
 
 - **Root cause**: `SparkplugBPublisher` imported `sparkplug_b`. No such package has
   ever existed on PyPI and it was not vendored here, so the import guard caught the
   `ImportError` and disabled the publisher silently. It has been dead for the life
   of the project while the README counted it
 - **Root cause** (second one): where it did build payloads, it published **JSON** to
-  `spBv1.0/` topics. Sparkplug B is protobuf. No real consumer — Ignition, Chariot,
-  HiveMQ — could have decoded a single message even if the import had worked
-- **Fixed** — rewritten onto `pysparkplug`. The library owns protobuf encoding,
+  `spBv1.0/` topics. Sparkplug B is protobuf. No real consumer. Ignition, Chariot,
+  HiveMQ, could have decoded a single message even if the import had worked
+- **Fixed**: rewritten onto `pysparkplug`. The library owns protobuf encoding,
   `bdSeq`, sequence numbering and the NBIRTH/DBIRTH/NDEATH lifecycle, so the
   hand-rolled versions are gone rather than ported
 - **Fixed** ints mapping to `Int32`, which silently wrapped any counter past 2.1
@@ -211,16 +211,16 @@ at the app and found worse.
 - **Fixed** `paho-mqtt` being unbounded. `pysparkplug` requires `paho-mqtt<2`; a
   fresh install was resolving 2.x, whose changed callback API stops Sparkplug
   connecting. Same class of bug as the flask-graphql conflict
-- **Added** `test_sparkplug.py` — stands up an in-process broker, sniffs the wire,
+- **Added** `test_sparkplug.py`: stands up an in-process broker, sniffs the wire,
   and asserts the payloads decode as protobuf and **are not JSON**. Import checks
   would not have caught either original bug
 
 **Dependency security audit**
 
-- **Audited** with `pip-audit`. Pinned `click>=8.3.3` and `cryptography>=48.0.1` —
+- **Audited** with `pip-audit`. Pinned `click>=8.3.3` and `cryptography>=48.0.1`,
   neither imported directly, but an unbounded rebuild could resolve a vulnerable
   version
-- **Known unfixed**: CVE-2022-25304 in `opcua` — unauthenticated DoS via unlimited
+- **Known unfixed**: CVE-2022-25304 in `opcua`, unauthenticated DoS via unlimited
   unterminated chunks. Affects **every** version of `opcua` and of its successor
   `asyncua`, so there is nothing to upgrade to. The chart's NetworkPolicy keeps 4840
   inside the cluster and pod memory limits cap the damage at a restart. Documented
@@ -236,10 +236,10 @@ at the app and found worse.
 
 ### Bug Fix & Documentation Reorganization
 
-- **Fixed** `/dashboard` route returning 500 error — now redirects to main index instead of missing template
+- **Fixed** `/dashboard` route returning 500 error: now redirects to main index instead of missing template
 - **Moved** 9 documentation files from repo root to `documentation/` folder for cleaner structure
-- **Added** `App_Integration_Guide.md` — comprehensive guide for Embernet Dashboard integration
-- **Added** `GUI_DASHBOARD_TODO.md` — issue tracking and resolution documentation
+- **Added** `App_Integration_Guide.md`: comprehensive guide for Embernet Dashboard integration
+- **Added** `GUI_DASHBOARD_TODO.md`: issue tracking and resolution documentation
 - **Chart version**: `4.0.8`, appVersion: `4.0.8`
 - Image tag: `ghcr.io/embernet-ai/emberburn:4.0.8`
 - Helm chart: `https://embernet-ai.github.io/Emberburn/emberburn-4.0.8.tgz`
@@ -249,13 +249,13 @@ at the app and found worse.
 
 ## v4.0.7 — 2026-03-03
 
-### Flux Mesh Integration — Auto-Discovery Annotations
+### Flux Mesh Integration: Auto-Discovery Annotations
 
 - **Added** `flux.embernet.ai/*` annotations to all three Service templates (webui, opcua, prometheus)
 - **Added** `flux:` values block to `values.yaml` with `expose`, `serviceName`, `port`, `roleAttributes`
 - **Web UI** service exposed on the Flux mesh by default (`flux.expose: true`)
 - **OPC UA** and **Prometheus** services opt-in via `flux.exposeOpcua` / `flux.exposeMetrics`
-- Edge tunnel auto-discovers annotated services — zero per-site configuration required
+- Edge tunnel auto-discovers annotated services: zero per-site configuration required
 - Aligns with [flux_operability.md](docs/flux_operability.md) specification
 - **Chart version**: `4.0.7`, appVersion: `4.0.7`
 - Image tag: `ghcr.io/embernet-ai/emberburn:4.0.7`
@@ -286,9 +286,9 @@ at the app and found worse.
 ### Fix: Docker tags only from tagged releases
 
 - **Fixed** Docker metadata to stop generating a `main` branch tag that raced with the versioned tag build
-- **Removed** `type=ref,event=branch` and `type=ref,event=pr` from workflow metadata — only semver tags are generated now
+- **Removed** `type=ref,event=branch` and `type=ref,event=pr` from workflow metadata: only semver tags are generated now
 - **Changed** `latest` condition to explicitly require a `v*` tag ref instead of `is_default_branch`
-- **Result**: Pushing a `v*` tag now produces only `X.Y.Z`, `X.Y`, and `latest` — no more phantom `main` image
+- **Result**: Pushing a `v*` tag now produces only `X.Y.Z`, `X.Y`, and `latest`, no more phantom `main` image
 - **Chart version**: `4.0.5`, appVersion: `4.0.5`
 - Image tag: `ghcr.io/embernet-ai/emberburn:4.0.5`
 - Helm chart: `https://embernet-ai.github.io/Emberburn/emberburn-4.0.5.tgz`
@@ -302,8 +302,8 @@ at the app and found worse.
 
 - **Removed** old broken releases (v4.0.1, v4.0.2, v4.0.3) and their tgz files from the repo
 - **Cleaned** index.yaml to only contain the current version
-- **Docker workflow** now only triggers on `v*` tags and `workflow_dispatch` — no more branch pushes or release events causing racing builds
-- **Note**: CodeQL "Push on main" and built-in "pages build and deployment" are GitHub repo settings — disable CodeQL in Settings > Code Security, and set Pages source to "GitHub Actions" in Settings > Pages
+- **Docker workflow** now only triggers on `v*` tags and `workflow_dispatch`, no more branch pushes or release events causing racing builds
+- **Note**: CodeQL "Push on main" and built-in "pages build and deployment" are GitHub repo settings, disable CodeQL in Settings > Code Security, and set Pages source to "GitHub Actions" in Settings > Pages
 - **Chart version**: `4.0.4`, appVersion: `4.0.4`
 - Image tag: `ghcr.io/embernet-ai/emberburn:4.0.4`
 - Helm chart: `https://embernet-ai.github.io/Emberburn/emberburn-4.0.4.tgz`
@@ -315,7 +315,7 @@ at the app and found worse.
 
 ### Fix: Workflow triggers causing image overwrites
 
-- **Root cause**: Docker build workflow triggered on `push to main`, `v* tags`, AND `release published` — causing 3 simultaneous builds that raced and overwrote the working `latest` manifest with a broken one
+- **Root cause**: Docker build workflow triggered on `push to main`, `v* tags`, AND `release published`, causing 3 simultaneous builds that raced and overwrote the working `latest` manifest with a broken one
 - **Fix**: Stripped workflow down to only trigger on `v*` tags and `workflow_dispatch`. No more branch push or release event builds.
 - **Chart version**: `4.0.3`, appVersion: `4.0.3`
 - Image tag: `ghcr.io/embernet-ai/emberburn:4.0.3`
@@ -326,7 +326,7 @@ at the app and found worse.
 
 ## v4.0.2 — 2026-02-12
 
-### Fix: Image tag 4.0.1 never published — 403 on pull
+### Fix: Image tag 4.0.1 never published: 403 on pull
 
 - **Root cause**: Chart.yaml and values.yaml were bumped to `4.0.1` but no `v4.0.1` git tag was pushed, so no container image was built. GHCR returns 403 (not 404) for non-existent tags on public repos, making it look like an auth issue.
 - **Fix**: Bumped all versions to `4.0.2`, will push `v4.0.2` git tag to trigger GitHub Actions multi-arch build
@@ -391,7 +391,7 @@ at the app and found worse.
 
 ### Fix: ImagePullBackOff / 403 Forbidden on GHCR
 
-- **Root cause**: `docker-publish.yml` metadata-action included `type=sha`, generating SHA-digest tags (e.g., `sha-02870d...`). When workflow was triggered by branch push instead of semver tag, only SHA/branch tags were pushed — no `3.10.0` version tag existed in GHCR, causing 403 on pull.
+- **Root cause**: `docker-publish.yml` metadata-action included `type=sha`, generating SHA-digest tags (e.g., `sha-02870d...`). When workflow was triggered by branch push instead of semver tag, only SHA/branch tags were pushed, no `3.10.0` version tag existed in GHCR, causing 403 on pull.
 - **Fix**: Removed `type=sha` from `docker/metadata-action` tag rules. Only semver, branch, PR, and `latest` tags are now generated.
 - Image tag: `ghcr.io/embernet-ai/emberburn:3.10.1`
 - Multi-arch build (amd64/arm64) via GitHub Actions on `v3.10.1` tag
@@ -402,10 +402,10 @@ at the app and found worse.
 
 ### UI Fixes
 
-- **Fixed**: Navbar logo showed broken Embernet image inside dashboard iframe. Replaced with `emberburn-chart-icon.png` — EmberBurn now uses its own branding, not the Embernet parent logo.
+- **Fixed**: Navbar logo showed broken Embernet image inside dashboard iframe. Replaced with `emberburn-chart-icon.png`. EmberBurn now uses its own branding, not the Embernet parent logo.
 - **Fixed**: Dashboard showed "Loading tag data..." when 0 tags are running. Now shows "No tags configured".
 - **Fixed**: Publishers, Alarms, and Config pages stuck on infinite loading spinner when accessed through the Embernet Dashboard iframe proxy.
-  - **Root cause**: `api.js` used absolute path `/api` for fetch calls. The proxy URL rewriter in `publishers.py` only rewrites `text/html` responses — `api.js` is served as `application/javascript` so its paths were never rewritten. All API calls hit the dashboard host instead of routing through the proxy.
+  - **Root cause**: `api.js` used absolute path `/api` for fetch calls. The proxy URL rewriter in `publishers.py` only rewrites `text/html` responses, `api.js` is served as `application/javascript` so its paths were never rewritten. All API calls hit the dashboard host instead of routing through the proxy.
   - **Fix**: Changed `API_BASE` from `/api` (absolute) to `api` (relative). Browser resolves relative URLs against current page URL, which already includes the proxy prefix.
 - Image tag: `ghcr.io/embernet-ai/emberburn:3.10.0`
 - Multi-arch build (amd64/arm64) via GitHub Actions on `v3.10.0` tag
@@ -416,7 +416,7 @@ at the app and found worse.
 
 ### Fix: GHCR 403 Forbidden (Image Pull Failure)
 
-- **Root cause**: Dockerfile `org.opencontainers.image.source` label pointed to `Embernet-ai/Small-Application` (non-existent). GHCR uses this label to link packages to repositories — unlinked packages default to **private**, causing 403 on pull.
+- **Root cause**: Dockerfile `org.opencontainers.image.source` label pointed to `Embernet-ai/Small-Application` (non-existent). GHCR uses this label to link packages to repositories, unlinked packages default to **private**, causing 403 on pull.
 - **Fix**: Corrected label to `https://github.com/Embernet-ai/Emberburn` (the actual org repo name).
 - **Action required**: GHCR package visibility must be set to **Public** via org package settings after first successful build.
 - Image tag: `ghcr.io/embernet-ai/emberburn:3.9.0`
@@ -430,7 +430,7 @@ at the app and found worse.
 
 - **Problem**: When loaded inside the Embernet Dashboard iframe via `/api/proxy`, CSS/JS/images failed to load because absolute paths (`/static/web/...`) resolved against the dashboard domain.
 - **Fix**: Added `after_request` middleware in `publishers.py` that detects reverse proxy (`X-Forwarded-For` header) and rewrites all `href`/`src`/`fetch()` paths to route through `/api/proxy?target=http://PodIP:5000/...`.
-- Direct access (no proxy) is unaffected — rewriting only activates when proxied.
+- Direct access (no proxy) is unaffected: rewriting only activates when proxied.
 
 ---
 
@@ -450,7 +450,7 @@ at the app and found worse.
 ### Hotfix: "Launch UI" Proxies to Wrong Port
 
 - **Root cause**: Dashboard picks the **first** `containerPort` for "Launch UI" reverse proxy. `opcua` (4840) was listed before `webui` (5000), so the dashboard proxied to OPC UA binary protocol → `connection refused`.
-- **Fix**: Reordered ports in `deployment.yaml` — `webui` (5000) is now **first**.
+- **Fix**: Reordered ports in `deployment.yaml`, `webui` (5000) is now **first**.
 - Added `CAUTION` block + multi-port example to `NETWORKING_GUIDE.md` Section 2d.
 
 ---
@@ -462,7 +462,7 @@ at the app and found worse.
 - **Root cause**: Liveness/readiness probes targeted OPC UA port `4840`, which is slow to bind during container startup (tag loading, protocol initialization). K8s killed the container before OPC UA finished starting.
 - **Fix**: Probes now target Flask web UI port `5000` (starts instantly, reliable liveness indicator).
 - Liveness: `initialDelaySeconds: 45`, `failureThreshold: 6` (more startup headroom).
-- **All container ports unchanged**: `4840` (OPC UA), `5000` (WebUI), `8000` (Prometheus) — industrial protocol data still flows on all ports.
+- **All container ports unchanged**: `4840` (OPC UA), `5000` (WebUI), `8000` (Prometheus), industrial protocol data still flows on all ports.
 
 ---
 
@@ -481,9 +481,9 @@ at the app and found worse.
 
 ### 🔥 Highlights
 
-**Embernet UI Redesign** — Complete visual overhaul matching the Embernet Industrial Dashboard design language.  
-**OPC UA Tag Generator** — New feature for creating, managing, importing, and exporting OPC UA tags.  
-**Helm Chart Fixes** — Corrected index URL, added chart icon, cleaned stale packages.
+**Embernet UI Redesign**: Complete visual overhaul matching the Embernet Industrial Dashboard design language.  
+**OPC UA Tag Generator**: New feature for creating, managing, importing, and exporting OPC UA tags.  
+**Helm Chart Fixes**: Corrected index URL, added chart icon, cleaned stale packages.
 
 ---
 
@@ -537,11 +537,11 @@ New REST endpoints in `publishers.py`:
 
 ### Artwork Assets
 
-- `embernet-white.png` — Header logo (dark mode)
-- `embernet.png` — Header logo (light mode)
-- `fireball.png` — Company logo
-- `favicon-32x32.png` — Browser tab icon
-- `emberburn-chart-icon.png` — Helm chart catalog icon
+- `embernet-white.png`: Header logo (dark mode)
+- `embernet.png`: Header logo (light mode)
+- `fireball.png`: Company logo
+- `favicon-32x32.png`: Browser tab icon
+- `emberburn-chart-icon.png`: Helm chart catalog icon
 
 ---
 
@@ -554,5 +554,5 @@ New REST endpoints in `publishers.py`:
 
 ---
 
-*EmberBurn — Where Data Meets Fire 🔥*  
+*EmberBurn: Where Data Meets Fire 🔥*  
 *Fireball Industries × Embernet*

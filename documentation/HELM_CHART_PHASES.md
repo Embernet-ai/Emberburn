@@ -1,4 +1,4 @@
-# Emberburn Helm Chart — Embernet Alignment Phases
+# Emberburn Helm Chart: Embernet Alignment Phases
 
 > A phased roadmap to bring the Emberburn Helm chart into full compliance with the **Embernet Helm Chart Compatibility Requirements** and **Helm Chart Interface Alignment Guide**.
 
@@ -6,7 +6,7 @@
 
 ## Current State Summary
 
-The Emberburn chart (`helm/opcua-server/`) already has solid foundations — `nodeSelector` support, `app` and `app.kubernetes.io/instance` selector labels, health probes, resource presets, PVC, and a `NOTES.txt`. However, several critical gaps prevent full Embernet Dashboard integration:
+The Emberburn chart (`helm/opcua-server/`) already has solid foundations, `nodeSelector` support, `app` and `app.kubernetes.io/instance` selector labels, health probes, resource presets, PVC, and a `NOTES.txt`. However, several critical gaps prevent full Embernet Dashboard integration:
 
 | Area | Current | Required |
 |------|---------|----------|
@@ -22,11 +22,11 @@ The Emberburn chart (`helm/opcua-server/`) already has solid foundations — `no
 
 ---
 
-## Phase 1 — Fix Critical Discovery Labels
+## Phase 1: Fix Critical Discovery Labels
 
 **Goal:** Make the chart visible to the Embernet Dashboard.
 
-**Priority:** 🔴 Blocking — without these changes, the pod is invisible to the dashboard.
+**Priority:** 🔴 Blocking, without these changes, the pod is invisible to the dashboard.
 
 ### 1.1 Fix label domain from `embernet.io` → `embernet.ai`
 
@@ -61,7 +61,7 @@ embernet.ai/gui-type: {{ .Values.embernet.guiType | default "web" | quote }}
 ```
 
 ### Files Changed
-- `templates/deployment.yaml` — pod template labels section
+- `templates/deployment.yaml`: pod template labels section
 
 ### Validation
 ```bash
@@ -71,11 +71,11 @@ helm template test ./helm/opcua-server | grep "embernet.ai"
 
 ---
 
-## Phase 2 — Add Embernet Values Block
+## Phase 2: Add Embernet Values Block
 
 **Goal:** Expose all Embernet-specific settings as configurable values so operators can customize per-deployment.
 
-**Priority:** 🟠 High — needed for multi-instance and device-mapping scenarios.
+**Priority:** 🟠 High, needed for multi-instance and device-mapping scenarios.
 
 ### 2.1 Add `embernet` section to `values.yaml`
 
@@ -97,15 +97,15 @@ imagePullSecrets: []
 ```
 
 ### Files Changed
-- `values.yaml` — new `embernet` block + `imagePullSecrets` key
+- `values.yaml`: new `embernet` block + `imagePullSecrets` key
 
 ---
 
-## Phase 3 — Add Recommended Labels & Annotations to Pod Template
+## Phase 3: Add Recommended Labels & Annotations to Pod Template
 
 **Goal:** Enable display name customization, digital twin device mapping, and multi-instance disambiguation.
 
-**Priority:** 🟡 Medium — production readiness and dashboard UX polish.
+**Priority:** 🟡 Medium, production readiness and dashboard UX polish.
 
 ### 3.1 Add `embernet.ai/display-name` annotation (conditional)
 
@@ -132,7 +132,7 @@ embernet.ai/device: {{ .Values.embernet.device | quote }}
 Already included via `emberburn.selectorLabels` helper → `app.kubernetes.io/instance: {{ .Release.Name }}`. **No change needed.**
 
 ### Files Changed
-- `templates/deployment.yaml` — pod template labels + annotations sections
+- `templates/deployment.yaml`: pod template labels + annotations sections
 
 ### Validation
 ```bash
@@ -144,11 +144,11 @@ helm template test ./helm/opcua-server \
 
 ---
 
-## Phase 4 — Add `imagePullSecrets` Support
+## Phase 4: Add `imagePullSecrets` Support
 
 **Goal:** Allow deployment from private container registries (e.g., GHCR).
 
-**Priority:** 🟡 Medium — required if images are pulled from a private registry.
+**Priority:** 🟡 Medium, required if images are pulled from a private registry.
 
 ### 4.1 Add `imagePullSecrets` block to deployment template
 
@@ -162,7 +162,7 @@ spec:
 ```
 
 ### Files Changed
-- `templates/deployment.yaml` — pod spec section (before `containers:`)
+- `templates/deployment.yaml`: pod spec section (before `containers:`)
 
 ### Validation
 ```bash
@@ -173,11 +173,11 @@ helm template test ./helm/opcua-server \
 
 ---
 
-## Phase 5 — Service Selector & Naming Alignment
+## Phase 5: Service Selector & Naming Alignment
 
 **Goal:** Ensure the Rancher API proxy URL resolves correctly when the dashboard constructs `<RANCHER>/k8s/clusters/local/api/v1/namespaces/<ns>/services/http:<app-label>:<port>/proxy/`.
 
-**Priority:** 🟡 Medium — "Open" button may 404 if the Service name doesn't match expectations.
+**Priority:** 🟡 Medium, "Open" button may 404 if the Service name doesn't match expectations.
 
 ### 5.1 Verify Service name matches `app` label or release name
 
@@ -197,15 +197,15 @@ embernet.ai/app-name: {{ .Values.embernet.appName | default .Chart.Name | quote 
 ```
 
 ### Files Changed
-- `templates/service-webui.yaml` — labels section (optional enhancement)
+- `templates/service-webui.yaml`: labels section (optional enhancement)
 
 ---
 
-## Phase 6 — Values Schema Tolerance
+## Phase 6: Values Schema Tolerance
 
 **Goal:** Ensure the chart does not break when the K3s Helm controller injects unknown keys via `valuesContent`.
 
-**Priority:** 🟠 High — chart installs will fail if unknown keys trigger schema validation errors.
+**Priority:** 🟠 High, chart installs will fail if unknown keys trigger schema validation errors.
 
 ### 6.1 Confirm no JSON Schema validation file exists
 
@@ -224,11 +224,11 @@ helm template test ./helm/opcua-server \
 
 ---
 
-## Phase 7 — Documentation & README Update
+## Phase 7: Documentation & README Update
 
 **Goal:** Add Embernet-specific configuration section to the chart README so operators know which values control dashboard integration.
 
-**Priority:** 🟢 Low — nice to have for onboarding.
+**Priority:** 🟢 Low, nice to have for onboarding.
 
 ### 7.1 Add Embernet Integration section to chart README
 
@@ -256,11 +256,11 @@ Embernet Dashboard Integration:
 
 ---
 
-## Phase 8 — End-to-End Validation
+## Phase 8: End-to-End Validation
 
 **Goal:** Confirm the chart works correctly with the Embernet Dashboard in a live K3s environment.
 
-**Priority:** 🔴 Critical — final gating step before release.
+**Priority:** 🔴 Critical, final gating step before release.
 
 ### 8.1 Helm lint
 
@@ -320,12 +320,12 @@ kubectl get pods -l app.kubernetes.io/instance=emberburn-test \
 
 ### Recommended execution order
 
-**Phases 1–2** can be done together as a single commit — they are the minimum required to make the chart visible to the dashboard.
+**Phases 1–2** can be done together as a single commit, they are the minimum required to make the chart visible to the dashboard.
 
-**Phases 3–4** should follow immediately as a second commit — they round out the pod template for production use.
+**Phases 3–4** should follow immediately as a second commit, they round out the pod template for production use.
 
 **Phase 5–6** are verification-only and require no code changes based on the current chart state.
 
 **Phase 7** can be done at any time but ideally before publishing to the Embernet App Store.
 
-**Phase 8** is the final gate — do not tag a release until all checks pass.
+**Phase 8** is the final gate: do not tag a release until all checks pass.

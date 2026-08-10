@@ -4,13 +4,13 @@ Use this checklist every time you cut a new version. Copy/paste the raw markdown
 
 ---
 
-## 1. Pre-Flight — Verify Before You Touch Anything
+## 1. Pre-Flight: Verify Before You Touch Anything
 
-- [ ] **Working tree clean** — `git status` shows no uncommitted changes
-- [ ] **On `main` branch** — `git branch --show-current` returns `main`
-- [ ] **Pulled latest** — `git pull origin main` (org repo is source of truth — see
+- [ ] **Working tree clean**, `git status` shows no uncommitted changes
+- [ ] **On `main` branch**, `git branch --show-current` returns `main`
+- [ ] **Pulled latest**, `git pull origin main` (org repo is source of truth, see
       the remotes table at the bottom; check `git remote -v` before assuming names)
-- [ ] **Dependency audit clean** — `pip-audit -r requirements.txt --strict` passes.
+- [ ] **Dependency audit clean**, `pip-audit -r requirements.txt --strict` passes.
       `PYSEC-2026-888` / `GHSA-mfpj-3qhm-976m` (opcua chunk DoS) are expected: no
       upstream fix exists, and it is mitigated in-process by `apply_chunk_limits()`.
       Ignore those two and **nothing else**. CI enforces this in `security-audit.yml`.
@@ -21,7 +21,7 @@ Use this checklist every time you cut a new version. Copy/paste the raw markdown
 
 > **Why this exists:** In v3.9.0 we discovered a 403 Forbidden on every image pull.
 > The Dockerfile `org.opencontainers.image.source` label pointed to a repo name
-> (`Small-Application`) that doesn't exist on the Embernet-ai org — the org repo is
+> (`Small-Application`) that doesn't exist on the Embernet-ai org, the org repo is
 > called `Emberburn`. GHCR uses this label to link packages to repos. Unlinked
 > packages default to **private**, causing 403 even though the repo itself is public.
 
@@ -31,7 +31,7 @@ Use this checklist every time you cut a new version. Copy/paste the raw markdown
   ```
   If this says `Small-Application` or any other name → **STOP and fix it**.
 
-- [ ] **GHCR package visibility is Public** — verify at:
+- [ ] **GHCR package visibility is Public**: verify at:
   https://github.com/orgs/Embernet-ai/packages → `emberburn` → Package settings
   If the package doesn't exist yet (first release), you must set it to Public
   immediately after the first successful workflow run.
@@ -52,10 +52,10 @@ All four locations must have the **same** version string:
 | `helm/opcua-server/Chart.yaml` | `version`, `appVersion`, `catalog.cattle.io/upstream-version` | `4.0.9` |
 | `helm/opcua-server/values.yaml` | `emberburn.image.tag` | `"4.0.9"` |
 
-- [ ] `Chart.yaml` — `version: X.Y.Z`
-- [ ] `Chart.yaml` — `appVersion: "X.Y.Z"`
-- [ ] `Chart.yaml` — `catalog.cattle.io/upstream-version: "X.Y.Z"`
-- [ ] `values.yaml` — `tag: "X.Y.Z"`
+- [ ] `Chart.yaml`, `version: X.Y.Z`
+- [ ] `Chart.yaml`, `appVersion: "X.Y.Z"`
+- [ ] `Chart.yaml`, `catalog.cattle.io/upstream-version: "X.Y.Z"`
+- [ ] `values.yaml`, `tag: "X.Y.Z"`
 
 ---
 
@@ -78,12 +78,12 @@ Verify all four labels exist on **pod template** AND **Service (webui)** objects
 > Store-catalog lookup is case-insensitive so both resolve, but pre-4.1.8 instances
 > in the field still emit the lowercase form.
 
-### 4e. Tenant Labels — the silent-failure one
+### 4e. Tenant Labels: the silent-failure one
 
 `.Values.tenantLabels` is injected by the dashboard at deploy time. A chart that
 does not render it carries no `embernet.ai/tenant`, so its Services are filtered out
-of every tenant-scoped view — visible to SuperAdmin, **invisible to the customer who
-deployed it** — and POD SHELL returns 403. It looks fine from our side. Wired in
+of every tenant-scoped view, visible to SuperAdmin, **invisible to the customer who
+deployed it**: and POD SHELL returns 403. It looks fine from our side. Wired in
 v4.1.9; verify it stays wired:
 
 ```bash
@@ -93,14 +93,14 @@ helm template t helm/opcua-server --set tenantLabels."embernet\.ai/tenant"=acme 
 
 - [ ] `tenantLabels` rendered on pod template **and** all three Services
 
-### 4f. App Icon — must be an annotation, never a label
+### 4f. App Icon: must be an annotation, never a label
 
 Kubernetes label values cannot contain `/` or `:`, so an icon URL or data URI is
 only legal as an **annotation**. The dashboard reads it from pod annotations as well
 as the Service; Service-only leaves node cards showing a generic glyph.
 
 - [ ] `embernet.ai/app-icon` is an **annotation** on pod template **and** Service
-- [ ] Its value is **not** an external URL — air-gapped clusters cannot fetch one.
+- [ ] Its value is **not** an external URL: air-gapped clusters cannot fetch one.
       It is an embedded data URI from `emberburn.appIcon`; regenerate with
       `python scripts/build-chart-icon.py`
 
@@ -127,16 +127,16 @@ as the Service; Service-only leaves node cards showing a generic glyph.
 
 All must pass before committing:
 
-- [ ] **Helm lint** — `helm lint helm/opcua-server` → `0 chart(s) failed`
-- [ ] **Helm template** — `helm template test-release helm/opcua-server` renders without errors
-- [ ] **Chunk-limit guard** — `python test_chunk_limits.py` → `12/12`. This is the
+- [ ] **Helm lint**, `helm lint helm/opcua-server` → `0 chart(s) failed`
+- [ ] **Helm template**, `helm template test-release helm/opcua-server` renders without errors
+- [ ] **Chunk-limit guard**, `python test_chunk_limits.py` → `12/12`. This is the
       CVE-2022-25304 mitigation; it monkeypatches a private python-opcua method, so
       a dependency bump can silently un-apply it. The test drives the *unpatched*
       library first, so it fails rather than passing vacuously.
-- [ ] **Sparkplug B wire format** — `pip install amqtt && python test_sparkplug.py`
+- [ ] **Sparkplug B wire format**, `pip install amqtt && python test_sparkplug.py`
       → `15/15`. Asserts payloads are protobuf and **not** JSON, which is the bug
       that hid behind an import guard for the life of the project.
-- [ ] **Docker build** (optional, CI handles multi-arch) — `docker build -t emberburn:X.Y.Z .`
+- [ ] **Docker build** (optional, CI handles multi-arch), `docker build -t emberburn:X.Y.Z .`
 
 ---
 
@@ -149,10 +149,10 @@ All must pass before committing:
 
 Manual fallback (only if CI is broken):
 
-- [ ] **Delete old `.tgz`** — `Remove-Item emberburn-*.tgz`
-- [ ] **Package** — `helm package helm/opcua-server` (run from repo root)
-- [ ] **Regenerate index** — `helm repo index . --url https://embernet-ai.github.io/Emberburn/`
-- [ ] **Verify `index.yaml`** — `version:` and `urls:` reference the new `.tgz`
+- [ ] **Delete old `.tgz`**, `Remove-Item emberburn-*.tgz`
+- [ ] **Package**, `helm package helm/opcua-server` (run from repo root)
+- [ ] **Regenerate index**, `helm repo index . --url https://embernet-ai.github.io/Emberburn/`
+- [ ] **Verify `index.yaml`**, `version:` and `urls:` reference the new `.tgz`
 
 ---
 
@@ -165,7 +165,7 @@ Manual fallback (only if CI is broken):
 > not shipped yet. So when cutting `X.Y.Z` you write the entry for the *previous*
 > release, not this one.
 
-- [ ] `RELEASE_NOTES.md` top entry is the **previous** version — no entry for the
+- [ ] `RELEASE_NOTES.md` top entry is the **previous** version: no entry for the
       version being cut
 - [ ] `CHANGELOG.md` **does** carry the current version. It is not governed by the
       lag rule; it is the Keep-a-Changelog record and should be written as you go
@@ -182,7 +182,7 @@ Manual fallback (only if CI is broken):
 be pushed and the image must finish building *before* the chart bump reaches `main`,
 because `release.yml` publishes the chart on push-to-main while `docker-publish.yml`
 only builds on a `v*` tag. Pushing `main --tags` in one shot races them and can
-publish a chart referencing an image that does not exist yet — that is what the
+publish a chart referencing an image that does not exist yet, that is what the
 v4.0.9 ImagePullBackOff was. `release.yml` now hard-fails in that case rather than
 shipping it, so getting this wrong costs you a red build instead of a broken deploy.
 
@@ -218,10 +218,10 @@ git push upstream main --tags
 
 ## 9. Post-Push Verification
 
-- [ ] **GitHub Actions (Docker)** — check Actions tab, `docker-publish.yml` triggered on `vX.Y.Z` tag
-- [ ] **GitHub Actions (Pages)** — check Actions tab, `pages.yml` triggered on `index.yaml` change
-- [ ] **Image pull** — `docker pull ghcr.io/embernet-ai/emberburn:X.Y.Z` succeeds (no 403)
-- [ ] **GitHub Release** — create one on `Embernet-ai/Emberburn` for tag `vX.Y.Z`:
+- [ ] **GitHub Actions (Docker)**: check Actions tab, `docker-publish.yml` triggered on `vX.Y.Z` tag
+- [ ] **GitHub Actions (Pages)**: check Actions tab, `pages.yml` triggered on `index.yaml` change
+- [ ] **Image pull**, `docker pull ghcr.io/embernet-ai/emberburn:X.Y.Z` succeeds (no 403)
+- [ ] **GitHub Release**: create one on `Embernet-ai/Emberburn` for tag `vX.Y.Z`:
       ```bash
       gh release create vX.Y.Z -R Embernet-ai/Emberburn \
         --title "vX.Y.Z — <short description>" --notes-file <(...)
@@ -229,26 +229,26 @@ git push upstream main --tags
       Not optional. This was marked "if desired" and consequently skipped for every
       release between v4.0.7 and v4.1.10, leaving the Releases page eight versions
       stale while the tags and images were all published.
-- [ ] **Helm chart** — `helm repo update` shows new version in Rancher catalog
+- [ ] **Helm chart**, `helm repo update` shows new version in Rancher catalog
 
 ### Post-Deploy Dashboard Verification
 
-- [ ] **App appears in dashboard** — EmberBurn card visible in "Deployed Apps"
-- [ ] **"OPEN" button works** — Opens Flask web UI in iframe
-- [ ] **Web UI loads** — All pages (Dashboard, Tags, Publishers, Alarms, Config, Tag Generator) load
-- [ ] **API endpoints work** — `/api/tags`, `/api/publishers` return data through proxy
-- [ ] **OPC UA working** — Port 4840 accessible from other pods
-- [ ] **Prometheus metrics** — Port 8000 `/metrics` endpoint returning data
+- [ ] **App appears in dashboard**: EmberBurn card visible in "Deployed Apps"
+- [ ] **"OPEN" button works**: Opens Flask web UI in iframe
+- [ ] **Web UI loads**: All pages (Dashboard, Tags, Publishers, Alarms, Config, Tag Generator) load
+- [ ] **API endpoints work**, `/api/tags`, `/api/publishers` return data through proxy
+- [ ] **OPC UA working**: Port 4840 accessible from other pods
+- [ ] **Prometheus metrics**: Port 8000 `/metrics` endpoint returning data
 
 ---
 
-## Quick Reference — Git Remotes
+## Quick Reference: Git Remotes
 
-Names vary by clone — **always confirm with `git remote -v`**. In this working copy:
+Names vary by clone, **always confirm with `git remote -v`**. In this working copy:
 
 | Remote | URL | Purpose |
 |--------|-----|---------|
-| `origin` | `https://github.com/Embernet-ai/Emberburn.git` | Org repo — CI runs here |
+| `origin` | `https://github.com/Embernet-ai/Emberburn.git` | Org repo. CI runs here |
 | `upstream` | `https://github.com/patrickryan01/Small-Application.git` | Personal fork |
 
 Older clones have these two names swapped, which is how the fork silently drifted
@@ -256,11 +256,11 @@ Older clones have these two names swapped, which is how the fork silently drifte
 
 ---
 
-## Quick Reference — Sidecar Proxy
+## Quick Reference: Sidecar Proxy
 
 **EmberBurn does NOT need the sidecar proxy.**
 Server-rendered Flask app with relative URL paths. Proxy-aware middleware handles URL rewriting natively (since v3.5.8).
 
 ---
 
-*EmberBurn — Where Data Meets Fire 🔥*
+*EmberBurn: Where Data Meets Fire 🔥*

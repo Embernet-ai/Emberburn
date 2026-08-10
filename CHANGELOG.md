@@ -5,14 +5,14 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.1.13] - 2026-08-09 — Sparkplug Credentials, Actually Shipped
+## [4.1.13] - 2026-08-09: Sparkplug Credentials, Actually Shipped
 
 AnvilMQ enforces per-user ACLs (`userManagement.enabled` has been the anvilmq
 chart default since 2.0.11), so every MQTT publisher needs a credential and a
 topic namespace that matches it. Both halves of that existed in the tree and
 neither was in anything deployable.
 
-### Fixed — the release that never happened
+### Fixed: the release that never happened
 
 - **Published chart 4.1.12 contained no `EMBERBURN_SPARKPLUG_*` env block.** The
   two Sparkplug-credential commits landed *after* the 4.1.12 chart was published,
@@ -27,13 +27,13 @@ neither was in anything deployable.
   `catalog.cattle.io/upstream-version` and the values image tag all move to
   4.1.13 together so the CI gate comparing them passes
 
-### Changed — groupId is derived, not typed
+### Changed: groupId is derived, not typed
 
 - `config.publishers.sparkplug.group_id` now defaults to **empty** and resolves
   from `tenantLabels."embernet.ai/tenant"`, which the dashboard already injects
-  at deploy time. groupId **is** the tenant slug: AnvilMQ scopes a credential to
+  at deploy time. groupId **is** the tenant slug. AnvilMQ scopes a credential to
   `spBv1.0/<tenant>/#`, so a groupId that is not that slug publishes outside the
-  grant and the broker refuses every message — returning failure rather than
+  grant and the broker refuses every message, returning failure rather than
   raising, which is how it stays invisible
 - The old default was `"Fireball"`: a wrong answer pre-filled for every tenant
   that is not Fireball, waiting to be deployed unchanged. The label deciding who
@@ -47,10 +47,10 @@ neither was in anything deployable.
 
 - Broker credentials come from a Secret via `existingSecret` / `usernameKey` /
   `passwordKey`, mirroring the Ignition-Edge-Pod convention. The rendered
-  publishers ConfigMap carries only non-secret settings — verified that the
+  publishers ConfigMap carries only non-secret settings. Verified that the
   password renders empty there while the env var resolves from the Secret
 
-## [4.1.12] - 2026-07-21 — Edge-Sized Storage
+## [4.1.12] - 2026-07-21: Edge-Sized Storage
 
 ### Fixed
 
@@ -66,16 +66,16 @@ neither was in anything deployable.
 - OPC UA hardening notes describe what the chunk guard protects and why, without
   publishing a usable recipe for the attack it blocks
 
-## [4.1.11] - 2026-07-21 — Release Process Repair
+## [4.1.11] - 2026-07-21: Release Process Repair
 
 4.1.9 and 4.1.10 were cut without following `RELEASE_CHECKLIST.md`. Four gates were
 missed. Three of them were missed because the checklist itself was wrong, so this
 release fixes the checklist rather than just the symptoms.
 
-### Fixed — RELEASE_CHECKLIST.md
+### Fixed: RELEASE_CHECKLIST.md
 
 - **§1/§8 remote names:** the checklist said `embernet` = org repo and `origin` =
-  personal fork. This clone has `origin` = org repo and `upstream` = personal fork —
+  personal fork. This clone has `origin` = org repo and `upstream` = personal fork,
   the reverse. Every push instruction pointed at the wrong name. Now says to check
   `git remote -v` and go by URL, with a corrected remotes table. This is how the
   fork silently drifted 17 commits behind between v4.0.8 and v4.1.10.
@@ -83,7 +83,7 @@ release fixes the checklist rather than just the symptoms.
   pushing the chart bump and the tag in one shot. `release.yml` publishes the chart
   on push-to-main while `docker-publish.yml` only builds on a `v*` tag, so that
   ordering races them and can publish a chart referencing an image that does not
-  exist — which is exactly what the v4.0.9 ImagePullBackOff was. Replaced with the
+  exist, which is exactly what the v4.0.9 ImagePullBackOff was. Replaced with the
   branch → tag → **wait for image** → merge → sync-fork sequence that the guard
   added in 4.1.9 actually enforces.
 - **§7 was self-contradictory:** it required both adding and removing the current
@@ -91,22 +91,22 @@ release fixes the checklist rather than just the symptoms.
   behind because the version in your tree has not shipped yet; `CHANGELOG.md`
   carries the current version and is not subject to the lag.
 - **§9 GitHub Release was marked "if desired"** and was consequently skipped for
-  every release from v4.0.8 to v4.1.10 — eight versions where tags and images
+  every release from v4.0.8 to v4.1.10, eight versions where tags and images
   published but the Releases page stayed at v4.0.7. Now mandatory, with the command.
 - **§4a `app-name` expected value** was `"emberburn"`; the chart has emitted
   `"EmberBurn"` since v4.1.7.
-- **§4e added — tenant labels.** The gate that would have caught the customer-visible
+- **§4e added: tenant labels.** The gate that would have caught the customer-visible
   bug fixed in 4.1.9, with a one-line command that asserts all four renders.
-- **§4f added — app icon.** Records that `app-icon` must be an annotation rather than
+- **§4f added: app icon.** Records that `app-icon` must be an annotation rather than
   a label (label values cannot contain `/` or `:`) and must not be an external URL.
-- **§5 added — the two new test gates.** `test_chunk_limits.py` and
+- **§5 added: the two new test gates.** `test_chunk_limits.py` and
   `test_sparkplug.py`. The chunk-limit test matters most: it guards a monkeypatch of
   a private python-opcua method, which a dependency bump can silently un-apply.
 
-### Fixed — documentation/HELM_CHART_REQUIREMENTS (1).md
+### Fixed: documentation/HELM_CHART_REQUIREMENTS (1).md
 
 - Added a supersession banner. Its claim that `embernet.ai/app-icon` resolves from
-  `pod.Labels` is wrong — the dashboard reads it as an **annotation** from both pod
+  `pod.Labels` is wrong, the dashboard reads it as an **annotation** from both pod
   and Service (`client.go:307-309`). Following this document is what produced the
   broken app tile fixed in 4.1.9. Also corrects its omission of the mandatory
   `embernet.ai/tenant` label and its listing of `web+shell`, which kube-apiserver
@@ -122,7 +122,7 @@ release fixes the checklist rather than just the symptoms.
 - Helm chart: `https://embernet-ai.github.io/Emberburn/emberburn-4.1.11.tgz`
 - Multi-arch build (amd64/arm64) via GitHub Actions on `v4.1.11` tag
 
-## [4.1.10] - 2026-07-20 — Mitigate CVE-2022-25304, Audit Dependencies in CI
+## [4.1.10] - 2026-07-20: Mitigate CVE-2022-25304, Audit Dependencies in CI
 
 4.1.9 shipped with a known-unfixed CVE documented in `requirements.txt` and a
 note telling operators to keep port 4840 off untrusted networks. Documenting a
@@ -134,7 +134,7 @@ unless we make it ours."
 
 - **opcua_server.py:** `apply_chunk_limits()` mitigates CVE-2022-25304 in-process.
   python-opcua accumulates incoming chunks in `SecureConnection._incoming_parts`,
-  a plain list cleared only when a Final or Abort chunk arrives — so a client can
+  a plain list cleared only when a Final or Abort chunk arrives, so a client can
   stream unlimited Intermediate chunks and never terminate the message. The guard
   caps both chunk count and total bytes per message and raises `UaError` past the
   limit, which the library already handles by tearing down that channel. One
@@ -144,7 +144,7 @@ unless we make it ours."
 - **opcua_server.py:** the guard reports failure loudly if python-opcua's
   internals move, so a lapsed mitigation is visible rather than silently assumed.
 - **test_chunk_limits.py:** new. Drives the **unguarded** library first and
-  demonstrates it retaining 5000 chunks — proving the vulnerability is real —
+  demonstrates it retaining 5000 chunks, proving the vulnerability is real,
   then installs the guard and asserts the flood is cut off at the limit, the
   buffer is released, the byte cap trips independently of the chunk cap,
   legitimate multi-chunk messages still assemble, and the byte counter does not
@@ -153,8 +153,8 @@ unless we make it ours."
   `requirements.txt` change, on PRs, and weekly on a schedule so a CVE published
   against an unchanged pin still surfaces. Runs `--strict`, and also executes
   `test_chunk_limits.py` to confirm the opcua mitigation is still wired.
-  PYSEC-2026-888 is explicitly ignored — it has no fixed version and is mitigated
-  in-process — which keeps the gate meaningful: any *other* vulnerability fails
+  PYSEC-2026-888 is explicitly ignored, it has no fixed version and is mitigated
+  in-process, which keeps the gate meaningful: any *other* vulnerability fails
   the build. 4.1.9's two transitive CVEs sat unnoticed precisely because nothing
   was checking.
 
@@ -169,14 +169,14 @@ unless we make it ours."
 - Helm chart: `https://embernet-ai.github.io/Emberburn/emberburn-4.1.10.tgz`
 - Multi-arch build (amd64/arm64) via GitHub Actions on `v4.1.10` tag
 
-## [4.1.9] - 2026-07-20 — App Store Contract, Air-Gapped Icons, Working Writes, 15/15 Protocols
+## [4.1.9] - 2026-07-20: App Store Contract, Air-Gapped Icons, Working Writes, 15/15 Protocols
 
-Audited the chart against the EmberNET App Store contract — the version generated
+Audited the chart against the EmberNET App Store contract, the version generated
 from the dashboard Go source rather than from documentation. Four gaps. Then went
 looking at the app itself and found the write path had never worked, GraphQL had
 never been able to start, and every icon we ship pointed at the public internet.
 
-### Fixed — App Store contract
+### Fixed: App Store contract
 
 - **deployment.yaml, service-*.yaml:** `.Values.tenantLabels` was never consumed
   anywhere in the chart. The dashboard injects it at deploy
@@ -185,7 +185,7 @@ never been able to start, and every icon we ship pointed at the public internet.
   (`services.go:226`), POD SHELL returning 403 (`shell.go:602-615`). Visible to
   SuperAdmin, invisible to the customer. Now on the pod template and all three
   Services, and declared in `values.yaml`
-- **deployment.yaml:** `embernet.ai/app-icon` was Service-only. Contract §9.5 —
+- **deployment.yaml:** `embernet.ai/app-icon` was Service-only. Contract §9.5,
   it is read from pod annotations too (`client.go:307-309`), and Service-only
   leaves node cards showing a generic glyph
 - **deployment.yaml:** `replicas` was set unconditionally while `hpa.yaml` manages
@@ -194,26 +194,26 @@ never been able to start, and every icon we ship pointed at the public internet.
 - **networkpolicy.yaml:** allowed 5000 and 4840 but not 8000, so turning on
   `networkPolicy` silently killed Prometheus scraping
 
-### Fixed — icons
+### Fixed: icons
 
 - **_helpers.tpl, service-webui.yaml:** `embernet.ai/app-icon` pointed at
   `avatars.githubusercontent.com`. Air-gapped clusters cannot reach it. Now an
-  embedded data URI via the new `emberburn.appIcon` helper — no network, no origin
+  embedded data URI via the new `emberburn.appIcon` helper, no network, no origin
   assumptions. A pod-relative path was tried and rejected: it resolves against the
   dashboard's origin, not ours
 - **Chart.yaml:** `icon:` pointed at the same avatar. Embedded data URI now
 - **base.html:** the header logo reassigned `logo.src` in JavaScript on load and
   theme toggle. The proxy rewriter matches `src="/` in markup, not
   `logo.src = "/` in a script, so the JS overwrote the rewritten path with a raw
-  absolute one. Both assignments were dead code — same image in both themes
+  absolute one. Both assignments were dead code, same image in both themes
 - **style.css:** dropped the Google Fonts `@import`. Same air-gap problem, which
   is why type has been rendering in fallback fonts
-- **values.yaml:** `embernet.appIcon` defaulted to `fireball.png` — the corporate
+- **values.yaml:** `embernet.appIcon` defaulted to `fireball.png`, the corporate
   shield, not the EmberBurn logo. Wrong brand even when it did load
 - **scripts/build-chart-icon.py:** new. Regenerates both embedded icons from
   `static/images/emberburn-chart-icon.png`. Idempotent
 
-### Fixed — the write path never worked
+### Fixed: the write path never worked
 
 - **opcua_server.py:** `write_callback` was only wired to
   `DataTransformationPublisher` by class-name match, so `RESTAPIPublisher`'s
@@ -222,27 +222,27 @@ never been able to start, and every icon we ship pointed at the public internet.
 - **opcua_server.py:** `write_tag()` had no `return` statement. Callers branch on
   the result, so even wired up, every success would have reported as a failure
 - **publishers.py, opcua_server.py:** `DELETE /api/tags/<name>` cleared only the
-  publisher cache, which `publish()` repopulated on the next cycle — the tag came
+  publisher cache, which `publish()` repopulated on the next cycle, the tag came
   back in under two seconds while the API returned success. Added
   `OPCUAServer.delete_tag()` and a delete callback
 
-### Fixed — GraphQL
+### Fixed: GraphQL
 
 - **publishers.py:** `flask_graphql` pins `graphql-core<3` while `graphene` 3.x
   needs `graphql-core>=3.1`. They cannot be installed together, which is why
   GraphQL has never started in a shipped image. Ported onto graphene 3 with a
   plain Flask view over `schema.execute()`
 - **publishers.py:** resolvers read `self.tags_data`, but graphene passes the root
-  value (`None` at top level) as the first resolver arg — every query would have
+  value (`None` at top level) as the first resolver arg, every query would have
   raised `AttributeError`
 - **publishers.py:** `tag_metadata` was snapshotted at `__init__`, before
   `opcua_server` attaches it, so it stayed empty forever
 - **opcua_server.py:** `_setup_tag_metadata()` tested only for `tag_cache` while
   its own comment claimed it covered GraphQL, which uses `tags_data`
-- **publishers.py, config_graphql.json:** GraphiQL defaults off — CDN assets. The
+- **publishers.py, config_graphql.json:** GraphiQL defaults off. CDN assets. The
   API has no external dependency
 
-### Added — security
+### Added: security
 
 - **publishers.py:** mutating `/api/*` calls require an `X-EmberBurn-Token` header.
   Reads stay open for the dashboard. The pod injects the token into its own HTML,
@@ -252,29 +252,29 @@ never been able to start, and every icon we ship pointed at the public internet.
 - **publishers.py:** CORS was open to every origin. Same-origin by default via
   `security.corsOrigins`
 - **opcua_server.py:** OPC UA signing, encryption and username auth via
-  `security.opcua.*`. Off by default — enabling it breaks every anonymous SCADA
+  `security.opcua.*`. Off by default, enabling it breaks every anonymous SCADA
   client until each is reconfigured. Fails loudly at startup if enabled without
   certificates or users rather than quietly serving plaintext
 - **secret.yaml:** new, with `security.existingSecret` so credentials can live in
   sealed-secrets, external-secrets or vault instead of the chart
 
-### Fixed — release safety
+### Fixed: release safety
 
 - **release.yml:** the chart publishes on push-to-main, the image only builds on a
   `v*` tag. Out of order, that ships a chart pointing at an image that does not
-  exist — which is what 4.0.9 was. The workflow now refuses to package unless
+  exist, which is what 4.0.9 was. The workflow now refuses to package unless
   `appVersion` matches the values image tag and
   `ghcr.io/embernet-ai/emberburn:<version>` is already published. Order: push the
   tag, wait for the build, merge the chart bump
 
-### Fixed — everything else
+### Fixed: everything else
 
-- **publishers.py:** the `'REST API'` name-map key could never match —
+- **publishers.py:** the `'REST API'` name-map key could never match.
   `RESTAPIPublisher` stems to `RESTAPI`. UI showed "RESTAPI", icon fell back to a
   generic glyph, toggle always returned `success: false`. The 13-entry map was
   duplicated across two methods, which is how one drifted. One constant now
 - **publishers.py:** publisher status was snapshotted once during `start_all()`,
-  so the UI re-polled every 2s and re-rendered stale data — toggles never appeared
+  so the UI re-polled every 2s and re-rendered stale data, toggles never appeared
   to do anything. Live callback now
 - **publishers.py:** the Prometheus tag gauge was hardcoded to `1` with a
   `# Placeholder` comment; counts distinct published tags now. The
@@ -283,11 +283,11 @@ never been able to start, and every icon we ship pointed at the public internet.
   server-side. Import parses client-side and goes through `/api/tags/bulk`
 - **api.js, tags.js, tag_generator.js:** absolute `/api/...` paths broke behind the
   dashboard's query-parameter proxy, and the relative-path workaround was wrong
-  too — it resolves against the dashboard's own path. Both go through a
+  too, it resolves against the dashboard's own path. Both go through a
   proxy-aware base resolver now
 - **config.html:** the four "Feature coming soon!" buttons are gone. Export Config
   and View Logs are real, backed by new `/api/config` (credentials redacted) and
-  `/api/logs` (in-memory ring buffer — the app only logs to stdout). Restart and
+  `/api/logs` (in-memory ring buffer, the app only logs to stdout). Restart and
   Import were deleted rather than faked; config is Helm-managed
 - **style.css, tag_generator.html:** modal CSS was inline in one template, so every
   other page using `.modal-overlay` rendered unstyled
@@ -304,9 +304,9 @@ never been able to start, and every icon we ship pointed at the public internet.
   user, including three stale UTF-16 PowerShell error dumps from a machine that no
   longer exists
 
-### Fixed — Sparkplug B, which had never worked
+### Fixed: Sparkplug B, which had never worked
 
-- **publishers.py:** `SparkplugBPublisher` imported `sparkplug_b` — no such
+- **publishers.py:** `SparkplugBPublisher` imported `sparkplug_b`, no such
   distribution has ever existed on PyPI, and it was not vendored here, so the
   import guard caught the `ImportError` and silently disabled the publisher for
   the life of the project
@@ -319,7 +319,7 @@ never been able to start, and every icon we ship pointed at the public internet.
   of those are deleted rather than ported
 - Ints now map to `INT64` rather than the old `Int32`, which would silently wrap an
   OPC UA counter past 2.1 billion
-- Tags created after startup — the Tag Generator can do this — trigger a device
+- Tags created after startup, the Tag Generator can do this, trigger a device
   rebirth so the new metric is declared in a DBIRTH before its first DDATA, as the
   spec requires
 - **requirements.txt:** `paho-mqtt` gained an upper bound. `pysparkplug` requires
@@ -331,13 +331,13 @@ never been able to start, and every icon we ship pointed at the public internet.
   Sparkplug protobuf and **are not JSON**, and that values round-trip with correct
   datatypes. Import-level checks would not have caught either original bug
 
-### Fixed — dependency security audit
+### Fixed: dependency security audit
 
 - **requirements.txt:** audited with `pip-audit`. Pinned `click>=8.3.3`
-  (PYSEC-2026-2132) and `cryptography>=48.0.1` (GHSA-537c-gmf6-5ccf) — neither is
+  (PYSEC-2026-2132) and `cryptography>=48.0.1` (GHSA-537c-gmf6-5ccf), neither is
   imported directly, but without a floor a rebuild could resolve a vulnerable
   version
-- **KNOWN UNFIXED:** CVE-2022-25304 / PYSEC-2026-888 in `opcua` — unauthenticated
+- **KNOWN UNFIXED:** CVE-2022-25304 / PYSEC-2026-888 in `opcua`, unauthenticated
   DoS via unlimited unterminated chunks. It affects **all** versions of `opcua` and
   **all** versions of its successor `asyncua`, so no upgrade resolves it. Mitigated
   by the chart's NetworkPolicy restricting 4840 to the cluster and by pod memory
@@ -351,14 +351,14 @@ never been able to start, and every icon we ship pointed at the public internet.
 - Two documents in this repo contradict the source-derived contract and directly
   caused bugs fixed here: `documentation/HELM_CHART_REQUIREMENTS (1).md` claims the
   icon resolves from pod *labels*, and `.agent/APP_STORE_DEPLOYMENT_FLOW.md` was
-  cited by 4.1.8 as requiring a full icon URL — which is what put the GitHub avatar
+  cited by 4.1.8 as requiring a full icon URL, which is what put the GitHub avatar
   back. Both need reconciling or retiring
 - **Chart version**: `4.1.9`, appVersion: `4.1.9`
 - Image tag: `ghcr.io/embernet-ai/emberburn:4.1.9`
 - Helm chart: `https://embernet-ai.github.io/Emberburn/emberburn-4.1.9.tgz`
 - Multi-arch build (amd64/arm64) via GitHub Actions on `v4.1.9` tag
 
-## [4.1.8] - 2026-04-27 — App Store Deployment Flow Alignment
+## [4.1.8] - 2026-04-27: App Store Deployment Flow Alignment
 
 Align the chart end-to-end with `APP_STORE_DEPLOYMENT_FLOW.md`. The chart was
 already mostly conformant (Service named `{{ .Release.Name }}`, the Big Four
@@ -368,7 +368,7 @@ subdomain). This release closes the remaining gaps.
 ### Fixed
 - **values.yaml:** `embernet.appIcon` default was a bare filename
   (`fireball.png`), which produced an invalid `embernet.ai/app-icon` annotation
-  — the doc requires a full URL. Changed default to `""` so the
+, the doc requires a full URL. Changed default to `""` so the
   `service-webui.yaml` URL fallback (the GitHub avatar) is rendered.
 - **values.yaml:** `network.hostNetwork` default reverted to `false` per
   `AUDIT_HELM_CHARTS.md` §5 (Multi-Instance Compatibility). `hostNetwork: true`
@@ -389,21 +389,21 @@ subdomain). This release closes the remaining gaps.
   backward compat but `gui.type`/`gui.port` are the canonical inputs to the
   store-discovery labels.
 
-## [4.1.7] - 2026-04-24 — App Store Deployment Alignment
+## [4.1.7] - 2026-04-24: App Store Deployment Alignment
 
 ### Changed
 - **_helpers.tpl:** Standardized `app.kubernetes.io/name` to use chart name identity.
 - **_helpers.tpl:** Updated `embernet.ai/app-name` to use "EmberBurn" branding and made it configurable via `.Values.embernet.appName`.
 - **service-webui.yaml:** Made `embernet.ai/app-icon` annotation dynamic via `.Values.embernet.appIcon`.
 
-## [4.1.5] - 2026-04-24 — Dashboard Routing Fix
+## [4.1.5] - 2026-04-24: Dashboard Routing Fix
 
 ### Fixed
 - **service-webui.yaml:** Updated `flux.embernet.ai/service-name` annotation to default to `{{ .Release.Name }}` instead of `{{ .Chart.Name }}`. This resolves the 404 "Service Not Found" error in EmberNET Dashboard V4.0.7 by ensuring the proxy URL targets the actual Kubernetes service name.
 
 ---
 
-## [4.1.2] - 2026-04-21 — Documentation & Template Alignment
+## [4.1.2] - 2026-04-21: Documentation & Template Alignment
 
 ### Fixed
 - **NOTES.txt:** Updated all service name references from `{{ fullname }}` to `{{ .Release.Name }}` to match the actual service templates (service-webui, service-opcua, service-prometheus)
@@ -412,20 +412,20 @@ subdomain). This release closes the remaining gaps.
 
 ---
 
-## [4.1.0] - 2026-04-17 — Dashboard Alignment & Multi-Instance Support
+## [4.1.0] - 2026-04-17: Dashboard Alignment & Multi-Instance Support
 
-### ⚠️ BREAKING — Selector Label Change
+### ⚠️ BREAKING: Selector Label Change
 - **`app` label changed:** `{{ fullname }}` → `{{ .Chart.Name }}` in `_helpers.tpl`
   - All instances now share `app: emberburn` for grouping
   - `app.kubernetes.io/instance` distinguishes individual releases
-  - **Existing deployments must be deleted and reinstalled** (`helm uninstall` + `helm install`) — Kubernetes does not allow updating immutable `matchLabels` selectors in-place
+  - **Existing deployments must be deleted and reinstalled** (`helm uninstall` + `helm install`). Kubernetes does not allow updating immutable `matchLabels` selectors in-place
 
 ### Fixed
 - **Service names:** All services now use `{{ .Release.Name }}` as the base instead of `{{ fullname }}`
   - WebUI service: `<release-name>` (was `<release-name>-emberburn`)
   - OPC UA service: `<release-name>-opcua` (was `<release-name>-emberburn-opcua`)
   - Prometheus service: `<release-name>-metrics` (was `<release-name>-emberburn-metrics`)
-  - **This fixes dashboard FQDN proxy routing** — the "OPEN" button now resolves correctly
+  - **This fixes dashboard FQDN proxy routing**: the "OPEN" button now resolves correctly
 - **Ingress backend:** Updated to reference new webui service name
 - **Deployment strategy:** Added `strategy.type: Recreate` to prevent scheduling deadlock when using `hostNetwork: true` with a RWO PersistentVolumeClaim
 

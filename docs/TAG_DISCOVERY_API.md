@@ -727,7 +727,7 @@ curl http://localhost:9090/api/tags/discovery?category=process
 
 *"Look, I know it's tempting to just call your tags 'Tag1', 'Tag2', 'Tag3', but when you're troubleshooting at 2 AM and trying to figure out which sensor is throwing alarms, you'll thank past-you for writing actual descriptions. Future-you is watching. Don't let them down."*
 
-— Patrick Ryan, CTO, Fireball Industries
+. Patrick Ryan, CTO, Fireball Industries
 
 *"And for the love of all that is holy, USE UNITS. I don't care if 'everyone knows' it's in Celsius. Someone WILL assume Fahrenheit. Someone WILL multiply by the wrong conversion factor. Save yourself the pain. Add. The. Units."*
 

@@ -2,14 +2,14 @@
 
 This guide explains **everything** you need to do to integrate an application into the Embernet Industrial Dashboard ecosystem. This covers:
 
-1. **Helm Chart Requirements** — Labels, annotations, and templates
-2. **Application-Level Configuration** — What the app itself needs
-3. **GUI Type Configurations** — Web, Shell, Web+Shell, None
-4. **Complete Reference** — Every app in the ecosystem with exact settings
+1. **Helm Chart Requirements**: Labels, annotations, and templates
+2. **Application-Level Configuration**: What the app itself needs
+3. **GUI Type Configurations**: Web, Shell, Web+Shell, None
+4. **Complete Reference**: Every app in the ecosystem with exact settings
 
 ---
 
-## TL;DR — Minimum Requirements
+## TL;DR: Minimum Requirements
 
 To make ANY pod visible in the dashboard:
 
@@ -61,7 +61,7 @@ Every 5 seconds, the dashboard:
 
 Every pod created by your Helm chart **MUST** have these labels.
 
-### `embernet.ai/store-app: "true"` — THE GATEKEEPER
+### `embernet.ai/store-app: "true"`: THE GATEKEEPER
 
 ```yaml
 spec:
@@ -73,7 +73,7 @@ spec:
 
 **This is the bouncer at the door. No label = pod is invisible. No exceptions.**
 
-### `embernet.ai/gui-type: "<type>"` — DETERMINES UI RENDERING
+### `embernet.ai/gui-type: "<type>"`: DETERMINES UI RENDERING
 
 | Value | Card Shows | What Happens |
 |-------|-----------|--------------|
@@ -90,7 +90,7 @@ labels:
   embernet.ai/gui-type: "none"       # Background service (Telegraf)
 ```
 
-### `embernet.ai/gui-port: "<port>"` — WHERE THE WEB UI LIVES
+### `embernet.ai/gui-port: "<port>"`: WHERE THE WEB UI LIVES
 
 **Required for `web` and `web+shell` types. Omit for `shell` and `none`.**
 
@@ -104,7 +104,7 @@ labels:
 
 **IMPORTANT: Must be a STRING, not an integer!** YAML interprets unquoted numbers as integers, but K8s labels are always strings.
 
-### `app: <name>` — SERVICE SELECTOR MATCH
+### `app: <name>`: SERVICE SELECTOR MATCH
 
 This standard K8s label is used for:
 1. Service selector matching
@@ -168,7 +168,7 @@ labels:
 
 ## Part 4: GUI Type Deep Dive
 
-### TYPE: `web` — Apps With Web UI
+### TYPE: `web`: Apps With Web UI
 
 For applications that have a browser-based management interface.
 
@@ -187,7 +187,7 @@ labels:
   app: <selector>
 ```
 
-**Complete Example — Node-RED:**
+**Complete Example: Node-RED:**
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -230,7 +230,7 @@ spec:
 
 ---
 
-### TYPE: `shell` — CLI-Only Apps (Databases, Brokers)
+### TYPE: `shell`: CLI-Only Apps (Databases, Brokers)
 
 For applications with no web UI but useful CLI administration.
 
@@ -249,9 +249,9 @@ labels:
   app: <selector>
 ```
 
-**DO NOT include `embernet.ai/gui-port` — it's ignored for shell-only apps.**
+**DO NOT include `embernet.ai/gui-port`: it's ignored for shell-only apps.**
 
-**Complete Example — PostgreSQL:**
+**Complete Example: PostgreSQL:**
 ```yaml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -302,7 +302,7 @@ spec:
 
 ---
 
-### TYPE: `web+shell` — Apps With Both
+### TYPE: `web+shell`: Apps With Both
 
 For applications that have a web UI AND benefit from terminal access.
 
@@ -320,7 +320,7 @@ labels:
   app: <selector>
 ```
 
-**Complete Example — CODESYS Control:**
+**Complete Example: CODESYS Control:**
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -357,7 +357,7 @@ spec:
 
 ---
 
-### TYPE: `none` — Background Services (Headless)
+### TYPE: `none`: Background Services (Headless)
 
 For applications with no interactive UI. Exporters, agents, data collectors.
 
@@ -365,7 +365,7 @@ For applications with no interactive UI. Exporters, agents, data collectors.
 - Card shows "● Running" status indicator (green dot)
 - Dashed border, slightly reduced opacity (0.85)
 - No action buttons
-- Purely informational — shows the service is alive
+- Purely informational: shows the service is alive
 
 **Required Labels:**
 ```yaml
@@ -376,7 +376,7 @@ labels:
   app: <selector>
 ```
 
-**Complete Example — Telegraf:**
+**Complete Example: Telegraf:**
 ```yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -582,7 +582,7 @@ volumeMounts: []
 
 Beyond Helm labels, applications themselves may need configuration:
 
-### Web Apps — iframe Compatibility
+### Web Apps: iframe Compatibility
 
 The dashboard opens web UIs in an iframe. Some apps block this by default.
 
@@ -598,7 +598,7 @@ Many apps set `X-Frame-Options: DENY` or `Content-Security-Policy: frame-ancesto
 | **n8n** | Environment: `N8N_EDITOR_BASE_URL` must match dashboard URL |
 | **Home Assistant** | `configuration.yaml`: Add `http: { use_x_frame_options: false }` |
 
-**Example — Grafana ConfigMap:**
+**Example: Grafana ConfigMap:**
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -614,14 +614,14 @@ data:
     enabled = false
 ```
 
-### Shell Apps — Container Requirements
+### Shell Apps: Container Requirements
 
 For shell access to work:
 
 1. **Shell binary must exist:**
    - `/bin/sh` or `/bin/bash` must be in the container
    - Alpine images: Usually have `/bin/sh` (busybox)
-   - Distroless images: **DO NOT WORK** — no shell available
+   - Distroless images: **DO NOT WORK**, no shell available
 
 2. **Process must allow exec:**
    - Don't run with `readOnlyRootFilesystem: true` if shell needs to write temp files
@@ -631,7 +631,7 @@ For shell access to work:
    - The container user needs exec permissions
    - Root is not required, but the user needs a valid shell
 
-### Headless Apps — Health Endpoints
+### Headless Apps: Health Endpoints
 
 For `none` type apps, consider adding:
 
@@ -1210,7 +1210,7 @@ kubectl exec -it <podname> -- /bin/sh
 
 ## Next Steps
 
-- [Getting Started](Getting_Started.md) — Dashboard deployment
-- [Administrator Guide](Administrator_Guide.md) — App Store management
-- [Architecture Overview](Architecture_Overview.md) — System design
-- [Network Configuration](Network_Configuration.md) — Flux overlay setup
+- [Getting Started](Getting_Started.md): Dashboard deployment
+- [Administrator Guide](Administrator_Guide.md): App Store management
+- [Architecture Overview](Architecture_Overview.md): System design
+- [Network Configuration](Network_Configuration.md): Flux overlay setup
