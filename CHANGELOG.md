@@ -5,6 +5,42 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.14] - 2026-08-10: Revert The groupId Derivation
+
+### Reverted
+
+- **`config.publishers.sparkplug.group_id` is a plain value again.** 4.1.13
+  derived it from `tenantLabels."embernet.ai/tenant"` and failed the render when
+  that label was absent or disagreed. It was wrong about how this cluster
+  deploys: App Store installs here carry **no tenantLabels at all**. The live
+  `ignition-edge-fragua-edge-01`, `ignition-edge-fragua-edge-02` and
+  `codesys-pod` HelmChart CRDs have none, because the dashboard only injects
+  them when a deploy carries tenant context and these did not. So the
+  derivation made the chart fail to render on precisely the path that installs
+  it, which is the opposite of a safety feature
+- Set `group_id` per deploy in the CRD's `valuesContent`, the way every other
+  per-deploy setting is set here. The live ignition-edge CRDs carry
+  `persistence.storageClass` and `gateway.heap.max` exactly that way
+
+### Kept
+
+- The default stays empty rather than returning to `"Fireball"`. A non-empty
+  default is a wrong answer pre-filled for every tenant that is not Fireball,
+  and it fails quietly: the broker refuses the publish and returns failure
+  rather than raising, so the gateway looks healthy and sends nothing
+- Credentials from a Secret via `existingSecret` / `usernameKey` /
+  `passwordKey`, unchanged from 4.1.13
+
+### Known issue, not fixed here
+
+- `tenantLabels` are rendered as Kubernetes labels, and the dashboard injects
+  `embernet.ai/deployed-by` with the caller's **email**
+  (`store.go:757`, `:851`; the field is documented as "Email of user initiating
+  deployment" and is not passed through `sanitizeLabelValue`). `@` is not legal
+  in a label value, so any deploy that does carry tenant context fails on all
+  three Services and the Deployment. Reproduced by hand. Left alone because it
+  is a dashboard/contract question, not this chart's to decide
+
 ## [4.1.13] - 2026-08-09: Sparkplug Credentials, Actually Shipped
 
 AnvilMQ enforces per-user ACLs (`userManagement.enabled` has been the anvilmq

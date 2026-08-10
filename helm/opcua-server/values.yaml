@@ -30,7 +30,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.1.13"
+    tag: "4.1.14"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
@@ -225,15 +225,20 @@ config:
     # the credential's tenant is REJECTED by the broker — publishes return
     # failure rather than erroring, so the app looks healthy and sends nothing.
     #
-    # LEAVE THIS EMPTY. It is DERIVED from tenantLabels."embernet.ai/tenant",
-    # which the dashboard already injects at deploy time — so the label that
-    # decides who can see the app also decides the topic namespace, and the two
-    # cannot drift apart. It used to default to "Fireball", which was a wrong
-    # answer pre-filled for every tenant that is not Fireball, waiting to be
-    # deployed unchanged.
+    # SET THIS PER DEPLOY, in the HelmChart CRD's valuesContent, the same way
+    # every other per-deploy setting on this cluster is set (see the live
+    # ignition-edge CRDs, which carry storageClass and heap the same way).
     #
-    # Set it only to override deliberately. If it disagrees with the tenant
-    # label the render fails rather than guessing which one was meant.
+    # It is deliberately NOT derived from tenantLabels."embernet.ai/tenant".
+    # That was tried and reverted: App Store deploys on this cluster carry no
+    # tenantLabels at all — the live ignition-edge and codesys CRDs have none,
+    # because they are created without tenant context — so deriving from that
+    # label makes the chart fail to render on exactly the path that deploys it.
+    #
+    # The default is empty rather than "Fireball" because a non-empty default is
+    # a wrong answer pre-filled for every tenant that is not Fireball, and it
+    # fails silently: the broker refuses the publish and returns failure instead
+    # of raising, so the gateway looks healthy and sends nothing.
     sparkplug:
       enabled: false
       broker: "mosquitto-mqtt-pod"
