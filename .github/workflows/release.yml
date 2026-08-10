@@ -123,9 +123,15 @@ jobs:
       # ── 6. Rebuild the repository index ────────────────────────────
       #
       # --merge keeps entries whose tarball is not in the working tree, so the
-      # catalog survives even if a package is ever pruned from the repo. With
-      # every .tgz present this is equivalent to a full regeneration; it is the
-      # belt to the braces of no longer deleting them.
+      # catalog survives even if a package goes missing by accident. With every
+      # .tgz present this is equivalent to a full regeneration; it is the belt
+      # to the braces of no longer deleting them.
+      #
+      # TO PRUNE VERSIONS DELIBERATELY, --merge is not enough and will undo you:
+      # it re-adds the entry for a package you just removed. Do it in a commit,
+      # not here — `git rm emberburn-<old>.tgz && rm index.yaml && helm repo
+      # index . --url <url>` regenerates from what is left, and the guard below
+      # then passes because entries and packages match again.
       - name: Helm repo index
         if: steps.check.outputs.skip == 'false'
         run: |
