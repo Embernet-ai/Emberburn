@@ -30,7 +30,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.1.11"
+    tag: "4.1.13"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
