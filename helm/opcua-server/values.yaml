@@ -222,13 +222,23 @@ config:
     # group_id IS THE TENANT SLUG. AnvilMQ enforces tenancy by topic prefix
     # `spBv1.0/<tenant>/...`, and each broker credential carries an ACL confined
     # to its own tenant (e.g. `spBv1.0/fragua/#`). A group_id that does not match
-    # the credential's tenant is REJECTED by the broker — publishes silently
-    # return failure rather than erroring, so set this deliberately per tenant.
+    # the credential's tenant is REJECTED by the broker — publishes return
+    # failure rather than erroring, so the app looks healthy and sends nothing.
+    #
+    # LEAVE THIS EMPTY. It is DERIVED from tenantLabels."embernet.ai/tenant",
+    # which the dashboard already injects at deploy time — so the label that
+    # decides who can see the app also decides the topic namespace, and the two
+    # cannot drift apart. It used to default to "Fireball", which was a wrong
+    # answer pre-filled for every tenant that is not Fireball, waiting to be
+    # deployed unchanged.
+    #
+    # Set it only to override deliberately. If it disagrees with the tenant
+    # label the render fails rather than guessing which one was meant.
     sparkplug:
       enabled: false
       broker: "mosquitto-mqtt-pod"
       port: 1883
-      group_id: "Fireball"
+      group_id: ""
       edge_node_id: "EmberBurn"
 
       # ── Broker credentials ────────────────────────────────────────────

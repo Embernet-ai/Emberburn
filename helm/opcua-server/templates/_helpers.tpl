@@ -143,5 +143,51 @@ Generate JSON config for tags
 Generate JSON config for publishers
 */}}
 {{- define "emberburn.publishersConfig" -}}
-{{- toJson .Values.config.publishers }}
+{{- $p := deepCopy .Values.config.publishers -}}
+{{- if $p.sparkplug.enabled -}}
+{{- $_ := set $p.sparkplug "group_id" (include "emberburn.sparkplugGroupId" .) -}}
+{{- end -}}
+{{- toJson $p }}
+{{- end }}
+
+{{/*
+The Sparkplug groupId, DERIVED rather than typed.
+
+groupId IS the tenant slug. AnvilMQ scopes a credential to `spBv1.0/<tenant>/#`,
+so a groupId that is not that tenant's slug publishes outside the grant and the
+broker refuses every message — returning failure rather than raising, which is
+how it stays invisible. Asking a human to retype the slug at deploy time puts
+that one typo away, and the old default ("Fireball") was the typo pre-made: any
+real tenant deploying without overriding it got a gateway that came up healthy
+and published nothing.
+
+The tenant is already known. `tenantLabels."embernet.ai/tenant"` is injected by
+the dashboard at deploy time (store.go) and is what decides who can even see
+this app, so the topic namespace and the visibility boundary now come from ONE
+string instead of two that have to be kept equal by hand.
+
+Precedence: an explicit group_id wins, so a deliberate override stays possible;
+otherwise the tenant label; otherwise the render fails rather than guessing. If
+both are set and DISAGREE the render fails too — that combination has no correct
+reading, and silently picking either is how you get a publisher that
+authenticates as one tenant and addresses another.
+*/}}
+{{- define "emberburn.sparkplugGroupId" -}}
+{{- $explicit := .Values.config.publishers.sparkplug.group_id | default "" -}}
+{{- $tenant := "" -}}
+{{- with .Values.tenantLabels -}}
+{{- $tenant = (index . "embernet.ai/tenant" | default "") -}}
+{{- end -}}
+{{- if and $explicit $tenant -}}
+{{- if ne $explicit $tenant -}}
+{{- fail (printf "config.publishers.sparkplug.group_id is %q but tenantLabels.\"embernet.ai/tenant\" is %q. groupId IS the tenant slug: AnvilMQ scopes this app's credential to spBv1.0/%s/#, so publishing under %q is refused by the broker on every message. Set them the same, or clear group_id and let the tenant label decide." $explicit $tenant $tenant $explicit) -}}
+{{- end -}}
+{{- $explicit -}}
+{{- else if $explicit -}}
+{{- $explicit -}}
+{{- else if $tenant -}}
+{{- $tenant -}}
+{{- else -}}
+{{- fail "Sparkplug is enabled but the tenant is unknown: set tenantLabels.\"embernet.ai/tenant\" (the dashboard injects this automatically) or, for a manual install, config.publishers.sparkplug.group_id. It is the tenant slug and it has to match the ACL on this app's broker credential (spBv1.0/<tenant>/#), so the chart will not invent one." -}}
+{{- end -}}
 {{- end }}
