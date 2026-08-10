@@ -1,5 +1,46 @@
 # EmberBurn Release Notes
 
+> These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
+> record what has shipped, and the version sitting in the working tree has not.
+
+## v4.1.12 — 2026-07-21
+
+### A Default Storage Request The Edge Could Not Satisfy
+
+- **Fixed** — the persistent volume claim asked for more than an edge cluster
+  can give it. Longhorn on the Fragua edges runs `default-replica-count=3` at
+  `storage-over-provisioning-percentage=100` with most of each node's disk
+  already scheduled, so the claim sat Pending on `insufficient storage; precheck
+  new replica failed` and the pod never started. EmberBurn's SQLite persistence
+  file is small; the old request was sized for a historian it does not run. The
+  default is now **2Gi**, which fits what an edge node actually has
+- **Docs** — the OPC UA hardening section now describes what the chunk guard
+  protects and why, without printing a working recipe for the attack it blocks
+
+## v4.1.11 — 2026-07-21
+
+### Repairing The Release Process, And The Checklist That Misdirected It
+
+4.1.9 and 4.1.10 were both cut without following `RELEASE_CHECKLIST.md`. Three of
+the four missed gates were missed because the checklist itself was wrong, so this
+release fixed the checklist rather than the symptoms.
+
+- **Remote names were backwards** — the checklist named the personal fork as the
+  org repo and vice versa, so every push instruction pointed at the wrong place.
+  That is how the fork drifted 17 commits behind between v4.0.8 and v4.1.10. It
+  now says to check `git remote -v` and go by URL, not by name
+- **Push order was actively dangerous** — it said to push `main --tags` in one
+  shot. `release.yml` publishes the chart on push-to-main while
+  `docker-publish.yml` only builds on a `v*` tag, so that races them and can
+  publish a chart referencing an image that does not exist. That is precisely
+  what the v4.0.9 ImagePullBackOff was. Replaced with branch → tag → **wait for
+  the image** → merge → sync-fork
+- **§7 was self-contradictory** — it demanded both adding and removing the
+  current version's release-notes entry. Resolved into the lag rule above
+- **Added a hard gate** — `release.yml` now refuses to publish a chart whose
+  `appVersion` image is absent from GHCR, so getting the order wrong costs a red
+  build instead of a broken deploy
+
 ## v4.1.10 — 2026-07-20
 
 ### Actually Fixing The CVE Instead Of Documenting It

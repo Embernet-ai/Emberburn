@@ -5,6 +5,67 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.13] - 2026-08-09 — Sparkplug Credentials, Actually Shipped
+
+AnvilMQ enforces per-user ACLs (`userManagement.enabled` has been the anvilmq
+chart default since 2.0.11), so every MQTT publisher needs a credential and a
+topic namespace that matches it. Both halves of that existed in the tree and
+neither was in anything deployable.
+
+### Fixed — the release that never happened
+
+- **Published chart 4.1.12 contained no `EMBERBURN_SPARKPLUG_*` env block.** The
+  two Sparkplug-credential commits landed *after* the 4.1.12 chart was published,
+  and `release.yml` skips a version already indexed, so nothing republished. A
+  deploy setting `config.publishers.sparkplug.existingSecret` rendered no
+  environment variables at all
+- **No image read them either.** `docker-publish.yml` only builds on a `v*` tag
+  and the `publishers.py` change is in no released tag, so even a correct chart
+  would have run against an image that ignores the variables
+- Net effect: EmberBurn would have come up healthy, reported nothing wrong, and
+  published nothing. Chart `version`, `appVersion`,
+  `catalog.cattle.io/upstream-version` and the values image tag all move to
+  4.1.13 together so the CI gate comparing them passes
+
+### Changed — groupId is derived, not typed
+
+- `config.publishers.sparkplug.group_id` now defaults to **empty** and resolves
+  from `tenantLabels."embernet.ai/tenant"`, which the dashboard already injects
+  at deploy time. groupId **is** the tenant slug: AnvilMQ scopes a credential to
+  `spBv1.0/<tenant>/#`, so a groupId that is not that slug publishes outside the
+  grant and the broker refuses every message — returning failure rather than
+  raising, which is how it stays invisible
+- The old default was `"Fireball"`: a wrong answer pre-filled for every tenant
+  that is not Fireball, waiting to be deployed unchanged. The label deciding who
+  can see the app now also decides the topic namespace, so the two cannot drift
+- An explicit `group_id` still wins, so deliberate overrides remain possible. If
+  it disagrees with the tenant label the render **fails** rather than guessing;
+  with neither set and Sparkplug enabled it also fails, rather than inventing a
+  namespace
+
+### Security
+
+- Broker credentials come from a Secret via `existingSecret` / `usernameKey` /
+  `passwordKey`, mirroring the Ignition-Edge-Pod convention. The rendered
+  publishers ConfigMap carries only non-secret settings — verified that the
+  password renders empty there while the env var resolves from the Secret
+
+## [4.1.12] - 2026-07-21 — Edge-Sized Storage
+
+### Fixed
+
+- **PVC default dropped to 2Gi.** Longhorn on the Fragua edges runs
+  `default-replica-count=3` at `storage-over-provisioning-percentage=100` with
+  most of each node's disk already scheduled, so the previous request sat Pending
+  on `insufficient storage; precheck new replica failed` and the pod never
+  started. The SQLite persistence file is small; the request had been sized for a
+  historian EmberBurn does not run
+
+### Documentation
+
+- OPC UA hardening notes describe what the chunk guard protects and why, without
+  publishing a usable recipe for the attack it blocks
+
 ## [4.1.11] - 2026-07-21 — Release Process Repair
 
 4.1.9 and 4.1.10 were cut without following `RELEASE_CHECKLIST.md`. Four gates were
