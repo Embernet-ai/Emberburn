@@ -3926,7 +3926,27 @@ class DataTransformationPublisher(DataPublisher):
     def set_write_callback(self, callback: Callable):
         """Set callback function for writing transformed tags."""
         self.write_callback = callback
-    
+
+    def set_computed_tags(self, computed_tags):
+        """
+        Replace the computed-tag set at runtime.
+
+        A computed tag is a tag: it has a name, a type and a value on the wire.
+        So it is authored the same way as every other tag, through the tag API,
+        instead of being frozen into chart values that need a release to change
+        one expression. The server collects every tag declaring the `computed`
+        model and hands the set here.
+        """
+        self.computed_tags = list(computed_tags or [])
+        # Drop rolling-window history for targets that no longer exist, so a
+        # deleted tag cannot leave samples behind to seed a later one of the
+        # same name.
+        live = {c.get("target_tag") for c in self.computed_tags}
+        for target in list(self.computed_history):
+            if target not in live:
+                del self.computed_history[target]
+        self.logger.info(f"Computed tags updated: {len(self.computed_tags)} definition(s)")
+
     def get_transformed_tags(self) -> Dict[str, Any]:
         """Get all transformed tag values."""
         return self.transformed_cache
