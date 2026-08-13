@@ -395,34 +395,27 @@ class RESTAPIPublisher(DataPublisher):
         except ImportError as e:
             self.logger.warning(f"Web UI Blueprint not available: {e}")
         
-        # Proxy-aware URL rewriting for dashboard iframe embedding.
-        # When the Embernet Dashboard proxies to us via /api/proxy?target=http://PodIP:5000,
-        # all absolute paths in our HTML (e.g. /static/web/css/style.css) must be rewritten
-        # to go back through the proxy, otherwise the browser requests them from the
-        # dashboard domain and gets 404s.
-        @self.app.after_request
-        def rewrite_proxy_urls(response):
-            # Only rewrite when behind a reverse proxy (Go's httputil sets X-Forwarded-For)
-            if not request.headers.get('X-Forwarded-For'):
-                return response
-            if not response.content_type or 'text/html' not in response.content_type:
-                return response
-            
-            # Build the proxy prefix using our own host (Pod IP:port)
-            proxy_base = f'/api/proxy?target=http://{request.host}'
-            
-            data = response.get_data(as_text=True)
-            # Rewrite absolute paths in href="" and src="" attributes
-            data = data.replace('href="/', f'href="{proxy_base}/')
-            data = data.replace("href='/", f"href='{proxy_base}/")
-            data = data.replace('src="/', f'src="{proxy_base}/')
-            data = data.replace("src='/", f"src='{proxy_base}/")
-            # Rewrite fetch/XHR API calls that use absolute paths
-            data = data.replace("fetch('/", f"fetch('{proxy_base}/")
-            data = data.replace('fetch("/', f'fetch("{proxy_base}/')
-            response.set_data(data)
-            return response
-        
+        # NO PROXY URL REWRITING. This used to rewrite every absolute href/src
+        # and fetch() in our HTML to `/api/proxy?target=http://<our host>/...`,
+        # gated on X-Forwarded-For.
+        #
+        # That gate does not distinguish the two ways the dashboard serves an
+        # app, and X-Forwarded-For is set on BOTH. The dashboard's primary route
+        # serves an app at the ROOT of its own hostname
+        # (`<svc>--<tenant>--<ns>--<port>.apps.embernet.ai`), where absolute
+        # paths already resolve correctly. Rewriting them there pointed every
+        # asset and every API call at the DASHBOARD's origin, for an app that is
+        # not served there — so the iframe opened and rendered nothing.
+        #
+        # `/api/proxy?target=` is a compatibility fallback, not something to
+        # design against: see the dashboard's own
+        # documentation/internal/App_Store_GUI_Shell_Alignment.md, which names
+        # this hook as "direction B", calls it the worse of the two failure
+        # modes because it pins an app to the fallback for good, and lists
+        # unpinning EmberBurn as an open decision.
+        #
+        # Serving at our own root needs no rewriting at all.
+
         # Setup API routes
         self.setup_routes()
     
