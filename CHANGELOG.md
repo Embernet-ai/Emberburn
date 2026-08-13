@@ -5,6 +5,26 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.17] - 2026-08-13: Stable OPC UA Node IDs
+
+### Fixed
+
+- **A tag's NodeId depended on the order tags were created in.**
+  `add_variable(idx, name, value)` asks the server to assign the next free
+  *numeric* identifier, so tags came out as `ns=2;i=1`, `ns=2;i=2` … in
+  creation order. An OPC client that bound to `ns=2;i=7` keeps that binding,
+  and the next start — a reordered tag store, one tag added, one removed —
+  silently pointed it at a different tag. Nothing errors; the screen just shows
+  the wrong number, in the right units, for a tag that looks plausible.
+- NodeIds are now strings derived from the tag name
+  (`ns=2;s=PLC_PRG/Baja_Temp`), which is stable across restarts, readable in a
+  client's browse tree, and the thing you actually want to write down as an OPC
+  item path.
+
+**Upgrade note:** any OPC client bound to the old numeric ids must be
+re-pointed. Browse paths are unchanged, so a client that browses rather than
+hardcodes ids is unaffected.
+
 ## [4.1.16] - 2026-08-13: Computed Tags Are Tags, Plus Energy And Clocks
 
 ### Changed

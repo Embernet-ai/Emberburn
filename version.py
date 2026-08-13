@@ -8,4 +8,4 @@ Keep this in sync with the git tag and with helm/opcua-server/Chart.yaml's
 `appVersion` when cutting a release.
 """
 
-__version__ = "4.1.16"
+__version__ = "4.1.17"

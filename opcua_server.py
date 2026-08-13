@@ -122,16 +122,24 @@ class OPCUAServer:
       increment   counter, optionally rolling over at max
       sine        smooth wave from amplitude/offset/period
       duty_cycle  boolean that runs on/off for configured durations
+      hysteresis  boolean under two-position control of another tag
       event       boolean that pulses rarely, for a random duration
       walk        bounded random walk with optional drift
       thermostat  temperature pulled down by a driver boolean, drifting up
                   toward ambient when that driver is off
       follows     mirrors another tag after a lag, with optional disagreement
+      accumulate  integrates another tag over time, for energy counters
+      clock       hour / minute / second of local time
+      computed    value from an expression over other tags
 
-    The last four exist because plant data has cause and effect. `bool` +
+    The behavioural ones exist because plant data has cause and effect. `bool` +
     `random` is a coin flip every scan, which reads as noise to anyone who has
     seen a real compressor, and no correlation between tags means no story to
     tell about a site.
+
+    Tags are created in the running program — through the web UI or the REST
+    API — and persisted to the data volume, NOT declared in a config file that
+    has to be edited and redeployed. See define_tag and the runtime tag store.
     """
     
     def __init__(self, config_file="tags_config.json", log_level="INFO"):
@@ -428,7 +436,7 @@ class OPCUAServer:
                 initial_value = self.convert_initial_value(initial_value, tag_type)
 
                 # Create OPC UA variable
-                var = myobj.add_variable(idx, tag_name, initial_value)
+                var = myobj.add_variable(self.node_id_for(tag_name), tag_name, initial_value)
                 var.set_writable()
 
                 # Store tag information
@@ -468,6 +476,24 @@ class OPCUAServer:
     # at runtime must carry its full simulation config (not just a value), and
     # it must still be there after the pod restarts.
     # ------------------------------------------------------------------
+
+    def node_id_for(self, tag_name):
+        """
+        Build a stable OPC UA NodeId for a tag.
+
+        `add_variable(idx, name, value)` asks the server to assign the next free
+        NUMERIC identifier, so a tag's NodeId depends on the order tags happen
+        to be created in. An OPC client that bound to `ns=2;i=7` keeps that
+        binding, and the next start — a reordered tag store, one tag added, one
+        removed — silently points it at a different tag. Nothing errors; the
+        screen just shows the wrong number.
+
+        A string NodeId derived from the tag name is stable across restarts and
+        readable in a client's browse tree, which is also what makes an OPC item
+        path worth writing down: `ns=2;s=PLC_PRG/Baja_Temp`.
+        """
+        from opcua import ua
+        return ua.NodeId(tag_name, self.namespace_index)
 
     def runtime_tag_store_path(self):
         """
@@ -612,7 +638,7 @@ class OPCUAServer:
                     )
                     return False
                 var = self.device_node.add_variable(
-                    self.namespace_index, tag_name, initial_value
+                    self.node_id_for(tag_name), tag_name, initial_value
                 )
                 var.set_writable()
                 self.tags[tag_name] = {
@@ -686,7 +712,7 @@ class OPCUAServer:
                     else:
                         tag_type = "string"
                     
-                    var = myobj.add_variable(idx, tag_name, value)
+                    var = myobj.add_variable(self.node_id_for(tag_name), tag_name, value)
                     var.set_writable()
                     
                     self.tags[tag_name] = {
