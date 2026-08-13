@@ -5,6 +5,31 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.19] - 2026-08-13: Unpin The Web UI From The Dashboard's Path Proxy
+
+### Fixed
+
+- **Launch UI opened an empty iframe.** An `after_request` hook rewrote every
+  absolute `href`/`src`/`fetch()` in our HTML to
+  `/api/proxy?target=http://<our host>/…`, gated on `X-Forwarded-For`.
+
+  That gate cannot tell the dashboard's two routes apart, and `X-Forwarded-For`
+  is set on **both**. The primary route serves an app at the **root of its own
+  hostname** (`<svc>--<tenant>--<ns>--<port>.apps.embernet.ai`), where absolute
+  paths already resolve. Rewriting them there pointed every asset and every API
+  call at the *dashboard's* origin, for an app not served there — so the frame
+  loaded and rendered nothing.
+
+  The hook is removed. Serving at our own root needs no rewriting, and
+  `static/js/api.js` was already mode-aware: it rebuilds the prefix from
+  `?target=` when present and uses same-origin paths when not, so the fallback
+  route still works.
+
+  The dashboard's own `documentation/internal/App_Store_GUI_Shell_Alignment.md`
+  names this hook as "direction B", calls it the worse of the two failure modes
+  because it pins an app to the fallback permanently, and lists unpinning
+  EmberBurn as an open decision. This closes it.
+
 ## [4.1.18] - 2026-08-13: Chart Fix — `args` Without `command` Never Starts
 
 ### Fixed
