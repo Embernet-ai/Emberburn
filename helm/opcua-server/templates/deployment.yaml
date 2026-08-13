@@ -83,10 +83,17 @@ spec:
         imagePullPolicy: {{ .Values.emberburn.image.pullPolicy }}
         {{- /*
           The image CMD points at a config baked into the image. Without this
-          `-c` the mounted ConfigMap is never read and the chart's tags and
+          the mounted ConfigMap is never read and the chart's tags and
           publishers do nothing at all — the pod runs the shipped demo tags and
           publishes nowhere, while looking perfectly healthy.
+
+          `command` is required, not decoration: the image declares CMD with no
+          ENTRYPOINT, so args alone REPLACE the whole command line and the
+          kubelet tries to exec "-c" as the program. Set both.
         */}}
+        command:
+        - "python"
+        - "opcua_server.py"
         args:
         - "-c"
         - {{ include "emberburn.configPath" . | quote }}

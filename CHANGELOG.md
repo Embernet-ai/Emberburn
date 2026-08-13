@@ -5,6 +5,19 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.18] - 2026-08-13: Chart Fix — `args` Without `command` Never Starts
+
+### Fixed
+
+- **The pod crash-looped on `exec: "-c": executable file not found`.** 4.1.15
+  added `args` to point the app at the mounted config, but the image declares
+  `CMD` with **no `ENTRYPOINT`**. Kubernetes `args` overrides `CMD` and leaves
+  `ENTRYPOINT` as the program — with no ENTRYPOINT, args become the entire
+  command line and the kubelet tries to exec `-c`. The template now sets
+  `command: ["python", "opcua_server.py"]` alongside `args`.
+
+Chart-only release; the 4.1.17 image is unchanged.
+
 ## [4.1.17] - 2026-08-13: Stable OPC UA Node IDs
 
 ### Fixed
