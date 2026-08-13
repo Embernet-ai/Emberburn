@@ -119,29 +119,30 @@ managed outside the chart (sealed-secrets, external-secrets, vault).
 {{- end }}
 
 {{/*
-ConfigMap name for tags
+ConfigMap name for the application config
 */}}
-{{- define "emberburn.tagsConfigMapName" -}}
-{{- printf "%s-tags" (include "emberburn.fullname" .) }}
+{{- define "emberburn.configMapName" -}}
+{{- printf "%s-config" (include "emberburn.fullname" .) }}
 {{- end }}
 
 {{/*
-ConfigMap name for publishers
+Path the application config is mounted at, and read from by the `-c` argument.
 */}}
-{{- define "emberburn.publishersConfigMapName" -}}
-{{- printf "%s-publishers" (include "emberburn.fullname" .) }}
+{{- define "emberburn.configPath" -}}
+/app/config/emberburn.json
 {{- end }}
 
 {{/*
-Generate JSON config for tags
-*/}}
-{{- define "emberburn.tagsConfig" -}}
-{{- toJson .Values.config.tags }}
-{{- end }}
+Generate the application config.
 
-{{/*
-Generate JSON config for publishers
+ONE document, not two. opcua_server.py takes a single `-c` path and reads
+`tags` and `publishers` as sections of it (load_tag_config does
+`config.get('tags', config)`, and PublisherManager is handed the same parsed
+config). Rendering tags.json and publishers.json as separate ConfigMaps gave
+the app no way to load either: it fell through to the config baked into the
+image and every value set here was silently ignored, including
+`publishers.sparkplug_b.enabled`.
 */}}
-{{- define "emberburn.publishersConfig" -}}
-{{- toJson .Values.config.publishers }}
+{{- define "emberburn.appConfig" -}}
+{{- toJson (dict "tags" .Values.config.tags "publishers" .Values.config.publishers) }}
 {{- end }}

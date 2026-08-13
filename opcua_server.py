@@ -26,6 +26,20 @@ logger = logging.getLogger("OPCUAServer")
 DEFAULT_MAX_CHUNKS = 512
 DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024 * 1024
 
+# Evaluation rank. Simulations that read another tag must run after whatever
+# they read, so a compressor that started this scan cools the room this scan.
+#
+# Refrigeration is a loop, not a chain: the thermostat switches on what the room
+# is doing, and the room does what the thermostat switched. Ranking `hysteresis`
+# between the independent types and `thermostat` breaks the cycle in the
+# physically correct place — the controller reads the temperature the room
+# reached last scan, exactly like a real one sampling its probe.
+SIM_RANK = {"hysteresis": 1, "thermostat": 2, "follows": 2}
+DEFAULT_SIM_RANK = 0
+
+# Distinguishes "no value recorded yet" from a legitimately recorded False.
+_NO_VALUE = object()
+
 
 def apply_chunk_limits(max_chunks: int = DEFAULT_MAX_CHUNKS,
                        max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES) -> bool:
@@ -99,10 +113,25 @@ def apply_chunk_limits(max_chunks: int = DEFAULT_MAX_CHUNKS,
 
 class OPCUAServer: 
     """
-    OPC UA Server with configurable tags and simulation capabilities. 
-    
+    OPC UA Server with configurable tags and simulation capabilities.
+
     Supports multiple data types (float, int, string, bool) and simulation modes
-    (random, increment, static) for industrial automation testing.
+    for industrial automation testing:
+
+      random      independent value in [min, max] every scan
+      increment   counter, optionally rolling over at max
+      sine        smooth wave from amplitude/offset/period
+      duty_cycle  boolean that runs on/off for configured durations
+      event       boolean that pulses rarely, for a random duration
+      walk        bounded random walk with optional drift
+      thermostat  temperature pulled down by a driver boolean, drifting up
+                  toward ambient when that driver is off
+      follows     mirrors another tag after a lag, with optional disagreement
+
+    The last four exist because plant data has cause and effect. `bool` +
+    `random` is a coin flip every scan, which reads as noise to anyone who has
+    seen a real compressor, and no correlation between tags means no story to
+    tell about a site.
     """
     
     def __init__(self, config_file="tags_config.json", log_level="INFO"):
@@ -121,6 +150,10 @@ class OPCUAServer:
         self.update_interval = float(os.getenv('UPDATE_INTERVAL', '2'))
         self.publisher_manager = None
         self.full_config = None
+        # Set once the address space exists; runtime-authored tags are attached
+        # to the same folder and namespace as the configured ones.
+        self.device_node = None
+        self.namespace_index = 0
         
         # Setup logging
         self.setup_logging(log_level)
@@ -374,30 +407,37 @@ class OPCUAServer:
         device_name = os.getenv('OPC_DEVICE_NAME', 'EdgeDevice')
         myobj = objects.add_object(idx, device_name)
         
-        # Load tag configuration
-        tag_config = self.load_tag_config()
-        
+        # Remember where new tags are attached so tags created at runtime land
+        # in the same folder and namespace as the configured ones.
+        self.device_node = myobj
+        self.namespace_index = idx
+
+        # Load tag configuration. Tags authored at runtime are layered on top,
+        # so a tag created through the API or the web UI outlives the pod.
+        tag_config = dict(self.load_tag_config())
+        tag_config.update(self.load_runtime_tags())
+
         # Create tags based on config
         for tag_name, tag_info in tag_config.items():
             try:
                 initial_value = tag_info.get("initial_value", 0)
                 tag_type = tag_info.get("type", "float")
                 description = tag_info.get("description", "")
-                
+
                 # Convert initial value to appropriate type
                 initial_value = self.convert_initial_value(initial_value, tag_type)
-                
+
                 # Create OPC UA variable
                 var = myobj.add_variable(idx, tag_name, initial_value)
                 var.set_writable()
-                
+
                 # Store tag information
                 self.tags[tag_name] = {
                     "variable": var,
                     "config": tag_info,
                     "type": tag_type
                 }
-                
+
                 # Store tag metadata for publishers
                 self.tag_metadata[tag_name] = {
                     "type": tag_type,
@@ -419,6 +459,157 @@ class OPCUAServer:
         self.logger.info(f"OPC UA Server configured with {len(self.tags)} tags")
         return idx
     
+    # ------------------------------------------------------------------
+    # Runtime tag authoring
+    #
+    # Tags are meant to be created in the running program — through the web UI
+    # or the REST API — not baked into a config file that someone has to edit
+    # and redeploy. Two things have to be true for that to work: a tag created
+    # at runtime must carry its full simulation config (not just a value), and
+    # it must still be there after the pod restarts.
+    # ------------------------------------------------------------------
+
+    def runtime_tag_store_path(self):
+        """
+        Where runtime-authored tag definitions are kept.
+
+        Defaults to the persistent data volume. Anywhere else and tags created
+        in the UI vanish on the next restart, which is the whole failure this
+        store exists to prevent.
+        """
+        return Path(os.getenv("EMBERBURN_TAG_STORE", "/app/data/tags.json"))
+
+    def load_runtime_tags(self):
+        """
+        Load tag definitions authored at runtime.
+
+        A missing store is the normal first-boot case, not an error. A corrupt
+        one is reported and skipped rather than taking the server down with it —
+        losing the tags someone added is bad, refusing to start at all is worse.
+        """
+        path = self.runtime_tag_store_path()
+        try:
+            if not path.exists():
+                return {}
+            with open(path, "r") as f:
+                tags = json.load(f)
+            if not isinstance(tags, dict):
+                self.logger.error(f"Runtime tag store {path} is not an object, ignoring")
+                return {}
+            self.logger.info(f"Loaded {len(tags)} runtime tag(s) from {path}")
+            return tags
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Runtime tag store {path} is not valid JSON, ignoring: {e}")
+            return {}
+        except Exception as e:
+            self.logger.error(f"Error reading runtime tag store {path}: {e}")
+            return {}
+
+    def save_runtime_tags(self) -> bool:
+        """
+        Persist every runtime-authored tag definition.
+
+        Written to a temporary file and moved into place, so a restart in the
+        middle of a bulk import cannot leave a half-written store that fails to
+        parse on the way back up.
+        """
+        path = self.runtime_tag_store_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            definitions = {
+                name: data["config"]
+                for name, data in self.tags.items()
+                if data.get("runtime")
+            }
+            temp_path = path.with_suffix(path.suffix + ".tmp")
+            with open(temp_path, "w") as f:
+                json.dump(definitions, f, indent=2)
+            temp_path.replace(path)
+            self.logger.debug(f"Persisted {len(definitions)} runtime tag(s) to {path}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error writing runtime tag store {path}: {e}")
+            return False
+
+    def define_tag(self, tag_name: str, definition: dict, persist: bool = True) -> bool:
+        """
+        Create or redefine a tag from a full definition.
+
+        This is what the REST API and the web UI call. `write_tag` only carries
+        a value, so a tag created through it was registered with
+        `{"simulate": False}` and never simulated no matter what the caller
+        asked for — which is exactly why tag sets ended up hardcoded into the
+        chart instead of being authored in the app.
+
+        Args:
+            tag_name: Name of the tag. May contain `/` to express a UNS path.
+            definition: Tag config — `type`, `initial_value`, `simulate`,
+                `simulation_type` and whatever keys that model takes.
+            persist: Write the runtime store afterwards. Bulk callers pass
+                False and save once at the end.
+
+        Returns:
+            True if the tag is now defined.
+        """
+        try:
+            tag_type = definition.get("type", "float")
+            initial_value = self.convert_initial_value(
+                definition.get("initial_value", 0), tag_type
+            )
+
+            existing = self.tags.get(tag_name)
+            if existing is not None:
+                # Redefining: keep the live node, swap the definition. Deleting
+                # and re-adding the variable would break any client subscription
+                # to it.
+                existing["config"] = definition
+                existing["type"] = tag_type
+                existing["runtime"] = True
+                existing.pop("sim", None)          # stale phase timers
+                if definition.get("reset_value", False):
+                    existing["variable"].set_value(initial_value)
+            else:
+                if self.device_node is None:
+                    self.logger.error(
+                        f"Cannot define tag {tag_name}: OPC UA server not started"
+                    )
+                    return False
+                var = self.device_node.add_variable(
+                    self.namespace_index, tag_name, initial_value
+                )
+                var.set_writable()
+                self.tags[tag_name] = {
+                    "variable": var,
+                    "config": definition,
+                    "type": tag_type,
+                    "runtime": True,
+                }
+
+            self.tag_metadata[tag_name] = {
+                "type": tag_type,
+                "description": definition.get("description", ""),
+                "units": definition.get("units", ""),
+                "min": definition.get("min"),
+                "max": definition.get("max"),
+                "category": definition.get("category", "general"),
+                "quality": definition.get("quality", "good"),
+                "writable": definition.get("writable", True),
+                "simulation_type": definition.get("simulation_type"),
+            }
+            self._setup_tag_metadata()
+
+            if persist:
+                self.save_runtime_tags()
+
+            self.logger.info(
+                f"Defined tag {tag_name} ({tag_type}, "
+                f"{definition.get('simulation_type') if definition.get('simulate') else 'static'})"
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Error defining tag {tag_name}: {e}")
+            return False
+
     def write_tag(self, tag_name: str, value) -> bool:
         """
         Write a value to a tag, creating it if it does not exist yet.
@@ -506,50 +697,85 @@ class OPCUAServer:
             # the tag stops being published and simulated.
             self.logger.error(f"Error removing OPC UA node for {tag_name}: {e}")
 
+        was_runtime = self.tags[tag_name].get("runtime", False)
         del self.tags[tag_name]
         self.tag_metadata.pop(tag_name, None)
+        # Persist the removal, or the tag comes back on the next restart and
+        # the delete looks like it silently failed.
+        if was_runtime:
+            self.save_runtime_tags()
         self.logger.info(f"Deleted tag: {tag_name}")
         return True
+
+    def simulation_order(self):
+        """
+        Return (tag_name, tag_data) pairs ordered so drivers update before the
+        tags that read them.
+
+        `sorted` is stable, so tags keep their configured order within each
+        rank. Recomputed per scan rather than cached because the REST API and
+        the transformation publisher can both create tags at runtime.
+        """
+        return sorted(
+            self.tags.items(),
+            key=lambda item: SIM_RANK.get(
+                item[1]["config"].get("simulation_type"), DEFAULT_SIM_RANK
+            )
+        )
 
     def update_tags(self):
         """Update tag values based on simulation configuration."""
         timestamp = time.time()
-        
-        for tag_name, tag_data in self.tags.items():
+
+        for tag_name, tag_data in self.simulation_order():
             try:
                 var = tag_data["variable"]
                 config = tag_data["config"]
                 tag_type = tag_data["type"]
-                
-                # Only update if simulation is enabled
-                if not config.get("simulate", False):
-                    continue
-                
+
                 sim_type = config.get("simulation_type", "random")
                 current_value = var.get_value()
-                
+
+                # A tag that isn't simulated still has a value worth sending —
+                # setpoints, mode strings, and tags written by the
+                # transformation publisher are all `simulate: false`. Skipping
+                # the publish for them meant they were declared in the DBIRTH
+                # and then never updated again.
+                if not config.get("simulate", False):
+                    sim_type = None
+
                 if sim_type == "random":
                     new_value = self.generate_random_value(config, tag_type)
-                    var.set_value(new_value)
-                    self.logger.debug(f"{tag_name}: {current_value} -> {new_value}")
-                    
                 elif sim_type == "increment":
                     new_value = self.generate_increment_value(current_value, config, tag_type)
-                    var.set_value(new_value)
-                    self.logger.debug(f"{tag_name}: {current_value} -> {new_value}")
-                    
                 elif sim_type == "sine":
                     new_value = self.generate_sine_value(config, tag_type)
+                elif sim_type == "duty_cycle":
+                    new_value = self.generate_duty_cycle_value(tag_name, tag_data, timestamp)
+                elif sim_type == "hysteresis":
+                    new_value = self.generate_hysteresis_value(tag_name, tag_data, current_value, timestamp)
+                elif sim_type == "event":
+                    new_value = self.generate_event_value(tag_name, tag_data, timestamp)
+                elif sim_type == "walk":
+                    new_value = self.generate_walk_value(tag_name, tag_data, current_value, timestamp)
+                elif sim_type == "thermostat":
+                    new_value = self.generate_thermostat_value(tag_name, tag_data, current_value, timestamp)
+                elif sim_type == "follows":
+                    new_value = self.generate_follows_value(tag_name, tag_data, current_value, timestamp)
+                else:
+                    new_value = None
+
+                if new_value is not None and new_value != current_value:
                     var.set_value(new_value)
                     self.logger.debug(f"{tag_name}: {current_value} -> {new_value}")
-                
+
                 # Publish to all configured publishers (MQTT, REST API, etc.)
                 if self.publisher_manager:
                     self.publisher_manager.publish_to_all(tag_name, var.get_value(), timestamp)
-                    
+
             except Exception as e:
                 self.logger.error(f"Error updating tag {tag_name}: {e}")
-    
+
     def generate_random_value(self, config, tag_type):
         """
         Generate a random value within configured range.
@@ -626,7 +852,360 @@ class OPCUAServer:
             return int(value)
         else:
             return round(value, 2)
-    
+
+    # ------------------------------------------------------------------
+    # Behavioral simulation
+    #
+    # These four carry state between scans (phase timers, walk position) and
+    # two of them read other tags, which is why they take `tag_data` and the
+    # scan timestamp rather than just `config`. State is kept on the tag entry
+    # so deleting a tag disposes of its simulation state with it.
+    # ------------------------------------------------------------------
+
+    def sim_state(self, tag_data):
+        """Return the mutable per-tag simulation state, creating it on first use."""
+        return tag_data.setdefault("sim", {})
+
+    @staticmethod
+    def jittered(seconds, jitter_fraction):
+        """Scatter a duration by ±jitter_fraction so cycles don't fall into lockstep."""
+        if jitter_fraction <= 0:
+            return seconds
+        low = max(0.0, 1.0 - jitter_fraction)
+        return max(1.0, seconds * random.uniform(low, 1.0 + jitter_fraction))
+
+    def referenced_value(self, tag_name, default=None):
+        """
+        Read another tag's current value, for simulations that depend on one.
+
+        An unknown reference is warned about once and then treated as the
+        default — a typo in one tag's `driver_tag` should not flood the log at
+        the scan rate, nor stop the rest of the site from simulating.
+        """
+        if not tag_name:
+            return default
+
+        entry = self.tags.get(tag_name)
+        if entry is None:
+            if not hasattr(self, "_warned_refs"):
+                self._warned_refs = set()
+            if tag_name not in self._warned_refs:
+                self._warned_refs.add(tag_name)
+                self.logger.warning(f"Simulation references unknown tag: {tag_name}")
+            return default
+
+        try:
+            return entry["variable"].get_value()
+        except Exception as e:
+            self.logger.error(f"Error reading referenced tag {tag_name}: {e}")
+            return default
+
+    def referenced_number(self, tag_name, default):
+        """Read another tag's value as a float, falling back to `default`."""
+        value = self.referenced_value(tag_name, None)
+        if value is None:
+            return float(default)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    def generate_duty_cycle_value(self, tag_name, tag_data, now):
+        """
+        Generate a boolean that runs on for `on_seconds` then off for
+        `off_seconds`, each scattered by `jitter_pct`.
+
+        This is what a compressor, a supply fan or a lighting contactor
+        actually does.
+
+        Config: on_seconds, off_seconds, jitter_pct, initial_value
+
+        Returns:
+            bool: current state of the cycle
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        on_seconds = float(config.get("on_seconds", 600))
+        off_seconds = float(config.get("off_seconds", 600))
+        jitter = max(0.0, float(config.get("jitter_pct", 15))) / 100.0
+
+        if "next_switch" not in state:
+            state["phase"] = bool(config.get("initial_value", False))
+            # Start somewhere inside the first phase rather than at its edge, so
+            # several assets on the same config don't switch in unison forever.
+            duration = self.jittered(on_seconds if state["phase"] else off_seconds, jitter)
+            state["next_switch"] = now + random.uniform(0.0, duration)
+
+        if now >= state["next_switch"]:
+            state["phase"] = not state["phase"]
+            state["next_switch"] = now + self.jittered(
+                on_seconds if state["phase"] else off_seconds, jitter
+            )
+
+        return state["phase"]
+
+    def generate_hysteresis_value(self, tag_name, tag_data, current_value, now):
+        """
+        Generate a boolean from two-position control of another tag.
+
+        Cooling (the default): switch on once `process_tag` rises above
+        setpoint + differential, off once it falls below setpoint - differential.
+        Set `invert: true` for heating.
+
+        Use this rather than `duty_cycle` wherever the plant has a controller.
+        A duty cycle is open-loop — it runs to a clock regardless of the
+        process — so its temperature settles wherever the cooling and warming
+        rates happen to balance, which is not the setpoint and drifts as soon as
+        anything else (a defrost, a door) perturbs it. Closing the loop is what
+        makes a cold room sit at the number on its setpoint tag.
+
+        `min_on_seconds` / `min_off_seconds` are short-cycle protection, which
+        real compressors have and which also stops the output chattering when
+        the process sits on a threshold.
+
+        Config: process_tag, setpoint, setpoint_tag, differential, invert,
+                min_on_seconds, min_off_seconds
+
+        Returns:
+            bool: commanded state of the device
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        setpoint = self.referenced_number(config.get("setpoint_tag"), config.get("setpoint", 0.0))
+        differential = float(config.get("differential", 1.0))
+        invert = bool(config.get("invert", False))
+        min_on = float(config.get("min_on_seconds", 0))
+        min_off = float(config.get("min_off_seconds", 0))
+
+        running = bool(current_value)
+        process = self.referenced_value(config.get("process_tag"), None)
+        if process is None:
+            return running
+        try:
+            process = float(process)
+        except (TypeError, ValueError):
+            return running
+
+        held_since = state.get("since", now)
+        state.setdefault("since", now)
+
+        above = process > setpoint + differential
+        below = process < setpoint - differential
+        # Heating inverts which side of the band calls for the device.
+        call_for_on, call_for_off = (below, above) if invert else (above, below)
+
+        if running and call_for_off:
+            if now - held_since >= min_on:
+                state["since"] = now
+                return False
+        elif not running and call_for_on:
+            if now - held_since >= min_off:
+                state["since"] = now
+                return True
+
+        return running
+
+    def generate_event_value(self, tag_name, tag_data, now):
+        """
+        Generate a boolean that is normally false and pulses true occasionally
+        — a door opening, a defrost cycle, a fault, a generator exercise run.
+
+        Intervals are exponentially distributed around `mtbe_seconds`, which is
+        what makes the gaps look unplanned instead of metronomic.
+
+        `overrun_probability` occasionally stretches an event past its normal
+        duration. That is deliberate: it is what eventually trips the
+        "open longer than 5 min" and "cycle longer than 45 min" alarms, so a
+        demo has something to show instead of staying green forever.
+
+        Config: mtbe_seconds, duration_min, duration_max, overrun_probability,
+                overrun_multiplier
+
+        Returns:
+            bool: True while the event is active
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        mtbe = float(config.get("mtbe_seconds", 2700))
+        duration_min = float(config.get("duration_min", 30))
+        duration_max = max(duration_min, float(config.get("duration_max", 90)))
+        overrun_probability = float(config.get("overrun_probability", 0.0))
+        overrun_multiplier = float(config.get("overrun_multiplier", 4.0))
+
+        def next_gap():
+            if mtbe <= 0:
+                return float("inf")
+            return random.expovariate(1.0 / mtbe)
+
+        if "next_start" not in state:
+            state["active"] = False
+            state["next_start"] = now + next_gap()
+
+        if state["active"]:
+            if now >= state.get("until", now):
+                state["active"] = False
+                state["next_start"] = now + next_gap()
+        elif now >= state["next_start"]:
+            duration = random.uniform(duration_min, duration_max)
+            if overrun_probability > 0 and random.random() < overrun_probability:
+                duration *= overrun_multiplier
+            state["active"] = True
+            state["until"] = now + duration
+
+        return state["active"]
+
+    def generate_walk_value(self, tag_name, tag_data, current_value, now):
+        """
+        Generate a bounded random walk, optionally with a steady drift.
+
+        Drift is the interesting part: a filter differential pressure that
+        creeps upward until it reaches its High setpoint and is then "changed"
+        (`reset_on_max`) tells a maintenance story that a random value in a
+        band cannot.
+
+        Config: step, drift_per_hour, min, max, reset_on_max, initial_value
+
+        Returns:
+            Value of the tag's declared type, clamped to [min, max]
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        step = float(config.get("step", 1.0))
+        drift_per_hour = float(config.get("drift_per_hour", 0.0))
+        min_val = float(config.get("min", 0.0))
+        max_val = float(config.get("max", 100.0))
+
+        elapsed = max(0.0, now - state.get("last_update", now))
+        state["last_update"] = now
+
+        try:
+            value = float(current_value)
+        except (TypeError, ValueError):
+            value = float(config.get("initial_value", min_val))
+
+        value += random.uniform(-step, step) + drift_per_hour * (elapsed / 3600.0)
+
+        if value >= max_val:
+            if config.get("reset_on_max", False):
+                value = float(config.get("initial_value", min_val))
+            else:
+                value = max_val
+        elif value < min_val:
+            value = min_val
+
+        if tag_data["type"] == "int":
+            return int(round(value))
+        return round(value, 2)
+
+    def generate_thermostat_value(self, tag_name, tag_data, current_value, now):
+        """
+        Generate a temperature that responds to a driver boolean.
+
+        While `driver_tag` is true the value is pulled toward `setpoint - band`
+        at `pull_rate` degrees per minute; while it is false the value drifts
+        back toward `ambient` at `rise_rate`. Pair it with a `duty_cycle`
+        compressor and the room sawtooths around its setpoint the way a real
+        one does — and the temperature and the compressor status agree with
+        each other, which is the whole point.
+
+        `setpoint_tag` lets the setpoint be another tag, so changing the
+        setpoint in the UI moves the process.
+
+        Config: setpoint, setpoint_tag, driver_tag, band, pull_rate, rise_rate,
+                ambient, noise
+
+        Returns:
+            float: the new temperature
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        setpoint = self.referenced_number(config.get("setpoint_tag"), config.get("setpoint", 0.0))
+        band = float(config.get("band", 1.0))
+        ambient = float(config.get("ambient", setpoint + 20.0))
+        pull_rate = float(config.get("pull_rate", 1.0))
+        rise_rate = float(config.get("rise_rate", 0.3))
+        noise = float(config.get("noise", 0.05))
+        driver_on = bool(self.referenced_value(config.get("driver_tag"), False))
+
+        elapsed = max(0.0, now - state.get("last_update", now))
+        state["last_update"] = now
+        minutes = elapsed / 60.0
+
+        try:
+            value = float(current_value)
+        except (TypeError, ValueError):
+            value = float(config.get("initial_value", setpoint))
+
+        target = (setpoint - band) if driver_on else ambient
+        delta = (pull_rate if driver_on else rise_rate) * minutes
+
+        if value < target:
+            value = min(target, value + delta)
+        else:
+            value = max(target, value - delta)
+
+        if noise:
+            value += random.uniform(-noise, noise)
+
+        return round(value, 2)
+
+    def generate_follows_value(self, tag_name, tag_data, current_value, now):
+        """
+        Mirror another tag's value after `lag_seconds`.
+
+        Models a feedback/status point trailing its command. With
+        `mismatch_probability` set, the feedback occasionally refuses to follow
+        for `mismatch_seconds` — a stuck contactor — which is precisely the
+        condition a command/feedback mismatch alarm exists to catch.
+
+        Config: source_tag, lag_seconds, mismatch_probability, mismatch_seconds
+
+        Returns:
+            The source's value once the lag has elapsed, otherwise the value
+            the tag already holds.
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        lag_seconds = float(config.get("lag_seconds", 0.0))
+        mismatch_probability = float(config.get("mismatch_probability", 0.0))
+        mismatch_seconds = float(config.get("mismatch_seconds", 30.0))
+
+        source_value = self.referenced_value(config.get("source_tag"), current_value)
+        source_changed = "last_source" in state and source_value != state["last_source"]
+
+        # `last_source` is deliberately NOT advanced while suppressed. Leaving it
+        # stale is what makes the change still look pending when the window
+        # expires, so the tag resynchronises instead of staying wrong forever.
+        if state.get("mismatch_until", 0.0) > now:
+            return current_value
+
+        # One roll per distinct change: `mismatch_for` records which source value
+        # was already refused, otherwise a high probability re-rolls the instant
+        # the window closes and the tag never catches up at all.
+        if (source_changed and mismatch_probability > 0
+                and state.get("mismatch_for", _NO_VALUE) != source_value
+                and random.random() < mismatch_probability):
+            state["mismatch_until"] = now + mismatch_seconds
+            state["mismatch_for"] = source_value
+            return current_value
+
+        if "last_source" not in state or source_changed:
+            state["last_source"] = source_value
+            state["pending"] = source_value
+            state["apply_at"] = now + lag_seconds
+
+        if "pending" in state and now >= state.get("apply_at", now):
+            state.pop("apply_at", None)
+            return state.pop("pending")
+
+        return current_value
+
     def print_server_info(self):
         """Print server startup information."""
         print("\n" + "="*60)
@@ -741,6 +1320,15 @@ class OPCUAServer:
 
             if hasattr(publisher, 'set_delete_callback'):
                 publisher.set_delete_callback(self.delete_tag)
+
+            # Full tag definitions, not just values. Without this the REST API
+            # can only set a value, so a tag created in the web UI is inert —
+            # no type, no simulation, no persistence.
+            if hasattr(publisher, 'set_define_callback'):
+                publisher.set_define_callback(self.define_tag)
+
+            if hasattr(publisher, 'set_persist_callback'):
+                publisher.set_persist_callback(self.save_runtime_tags)
 
 
 def main():

@@ -54,8 +54,8 @@
    {{- if .Values.config.publishers.influxdb.enabled }}
    ✓ InfluxDB Storage - {{ .Values.config.publishers.influxdb.url }}
    {{- end }}
-   {{- if .Values.config.publishers.sparkplug.enabled }}
-   ✓ Sparkplug B - Group: {{ .Values.config.publishers.sparkplug.group_id }}, Node: {{ .Values.config.publishers.sparkplug.edge_node_id }}
+   {{- if .Values.config.publishers.sparkplug_b.enabled }}
+   ✓ Sparkplug B - Group: {{ .Values.config.publishers.sparkplug_b.group_id }}, Node: {{ .Values.config.publishers.sparkplug_b.edge_node_id }}
    {{- end }}
    {{- if .Values.config.publishers.sqlite_persistence.enabled }}
    ✓ SQLite Persistence - /app/data/emberburn.db

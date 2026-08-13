@@ -3,6 +3,30 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.1.14 — 2026-08-10
+
+### The groupId Derivation, Reverted
+
+4.1.13 derived the Sparkplug `group_id` from
+`tenantLabels."embernet.ai/tenant"` and failed the render when that label was
+missing or disagreed. It was wrong about how this cluster deploys: App Store
+installs here carry no `tenantLabels` at all — the live `ignition-edge-*` and
+`codesys-pod` HelmChart CRDs have none — so the check broke precisely the
+install path it was meant to protect.
+
+- `config.publishers.sparkplug.group_id` is a plain value again, set per deploy
+  in the CRD's `valuesContent` like every other per-deploy setting here
+- The default stays empty rather than returning to `"Fireball"`. A non-empty
+  default is a wrong answer pre-filled for every tenant that is not Fireball,
+  and it fails quietly: the broker refuses the publish rather than raising, so
+  the gateway looks healthy and sends nothing
+- Secret-sourced credentials (`existingSecret` / `usernameKey` /
+  `passwordKey`) unchanged from 4.1.13
+
+**A caveat that outlived this release:** none of the above mattered yet. The
+chart had no way to get *any* of its config into the application — the key it
+argued over was in a file the app never opened. See 4.1.15.
+
 ## v4.1.13 — 2026-08-09
 
 ### Sparkplug Credentials From A Secret

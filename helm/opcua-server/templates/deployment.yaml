@@ -41,8 +41,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/tags: {{ include (print $.Template.BasePath "/configmap-tags.yaml") . | sha256sum }}
-        checksum/publishers: {{ include (print $.Template.BasePath "/configmap-publishers.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         # Read from pod annotations too, not just the Service — setting it only
         # on the Service leaves node cards showing a generic glyph.
         embernet.ai/app-icon: {{ include "emberburn.appIcon" . | quote }}
@@ -82,6 +81,17 @@ spec:
       - name: emberburn
         image: "{{ .Values.emberburn.image.repository }}:{{ .Values.emberburn.image.tag }}"
         imagePullPolicy: {{ .Values.emberburn.image.pullPolicy }}
+        {{- /*
+          The image CMD points at a config baked into the image. Without this
+          `-c` the mounted ConfigMap is never read and the chart's tags and
+          publishers do nothing at all — the pod runs the shipped demo tags and
+          publishes nowhere, while looking perfectly healthy.
+        */}}
+        args:
+        - "-c"
+        - {{ include "emberburn.configPath" . | quote }}
+        - "-l"
+        - {{ .Values.emberburn.opcua.logLevel | quote }}
         ports:
         # IMPORTANT: webui MUST be the first port listed.
         # The Embernet Dashboard picks the first containerPort for "Launch UI" proxy.
@@ -102,7 +112,7 @@ spec:
           the password stays in the Secret. Mirrors the Ignition-Edge-Pod
           existingSecret/passwordKey convention.
         */}}
-        {{- with .Values.config.publishers.sparkplug }}
+        {{- with .Values.config.publishers.sparkplug_b }}
         {{- if .existingSecret }}
         - name: EMBERBURN_SPARKPLUG_USERNAME
           valueFrom:
@@ -164,12 +174,9 @@ spec:
         - name: data
           mountPath: {{ .Values.persistence.mountPath }}
         {{- end }}
-        - name: tags-config
-          mountPath: /app/config/tags.json
-          subPath: tags.json
-        - name: publishers-config
-          mountPath: /app/config/publishers.json
-          subPath: publishers.json
+        - name: app-config
+          mountPath: {{ include "emberburn.configPath" . }}
+          subPath: emberburn.json
         resources:
           {{- include "emberburn.resources" . | nindent 10 }}
         {{- if .Values.emberburn.livenessProbe.enabled }}
@@ -205,10 +212,7 @@ spec:
         persistentVolumeClaim:
           claimName: {{ include "emberburn.pvcName" . }}
       {{- end }}
-      - name: tags-config
+      - name: app-config
         configMap:
-          name: {{ include "emberburn.tagsConfigMapName" . }}
-      - name: publishers-config
-        configMap:
-          name: {{ include "emberburn.publishersConfigMapName" . }}
+          name: {{ include "emberburn.configMapName" . }}
       restartPolicy: Always

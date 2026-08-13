@@ -366,6 +366,10 @@ class RESTAPIPublisher(DataPublisher):
         self.tag_cache = {}
         self.write_callback = None
         self.delete_callback = None
+        # Registers a full tag definition — type, simulation model, persistence
+        # — rather than just setting a value. See set_define_callback.
+        self.define_callback = None
+        self.persist_callback = None
 
         # Full gateway config, populated by PublisherManager. Distinct from
         # self.config, which holds only this publisher's own settings.
@@ -667,60 +671,30 @@ class RESTAPIPublisher(DataPublisher):
 
         @self.app.route('/api/tags/create', methods=['POST'])
         def create_tag():
-            """Create a new OPC UA tag."""
+            """
+            Create a new OPC UA tag from a full definition.
+
+            The request body is the tag definition: `name` plus whatever keys
+            its `simulation_type` takes. Everything except `name` is passed
+            through, so a new simulation model needs no change here.
+            """
             try:
                 data = request.get_json()
                 name = data.get('name')
                 if not name:
                     return jsonify({"error": "Tag name is required"}), 400
 
-                initial_value = data.get('initial_value', 0)
-                tag_type = data.get('type', 'float')
+                if not self.define_callback:
+                    return jsonify({"error": "Tag definition not supported"}), 501
 
-                # Convert value to correct type
-                if tag_type == 'float':
-                    try:
-                        initial_value = float(initial_value)
-                    except (ValueError, TypeError):
-                        initial_value = 0.0
-                elif tag_type == 'int':
-                    try:
-                        initial_value = int(initial_value)
-                    except (ValueError, TypeError):
-                        initial_value = 0
-                elif tag_type == 'bool':
-                    if isinstance(initial_value, str):
-                        initial_value = initial_value.lower() in ('true', '1', 'yes')
-                    else:
-                        initial_value = bool(initial_value)
-                else:
-                    initial_value = str(initial_value)
-
-                # Create via write_callback (which calls OPCUAServer.write_tag)
-                if self.write_callback:
-                    success = self.write_callback(name, initial_value)
-                    if success:
-                        # Store metadata
-                        if not hasattr(self, 'tag_metadata'):
-                            self.tag_metadata = {}
-                        self.tag_metadata[name] = {
-                            'type': tag_type,
-                            'description': data.get('description', ''),
-                            'units': data.get('units', ''),
-                            'category': data.get('category', 'general'),
-                            'min': data.get('min'),
-                            'max': data.get('max'),
-                            'simulate': data.get('simulate', False),
-                            'simulation_type': data.get('simulation_type', 'static'),
-                            'access': data.get('access', 'readwrite'),
-                            'quality': 'Good',
-                            'writable': data.get('access', 'readwrite') == 'readwrite'
-                        }
-                        return jsonify({"success": True, "tag": name, "value": initial_value})
-                    else:
-                        return jsonify({"error": "Failed to create tag on OPC UA server"}), 500
-
-                return jsonify({"error": "Write not supported"}), 501
+                definition = self._tag_definition(data)
+                if self.define_callback(name, definition):
+                    return jsonify({
+                        "success": True,
+                        "tag": name,
+                        "definition": definition,
+                    })
+                return jsonify({"error": "Failed to define tag on OPC UA server"}), 500
             except Exception as e:
                 self.logger.error(f"Error creating tag: {e}")
                 return jsonify({"error": str(e)}), 500
@@ -749,12 +723,22 @@ class RESTAPIPublisher(DataPublisher):
 
         @self.app.route('/api/tags/bulk', methods=['POST'])
         def bulk_create_tags():
-            """Bulk create multiple tags."""
+            """
+            Create many tags in one request.
+
+            This is how a site's tag list gets loaded: the list is the source of
+            truth somewhere outside this app, and it is pushed in here. The
+            runtime store is written once at the end rather than per tag, so
+            importing 500 tags is one file write, not 500.
+            """
             try:
                 data = request.get_json()
                 tags = data.get('tags', [])
                 if not tags:
                     return jsonify({"error": "No tags provided"}), 400
+
+                if not self.define_callback:
+                    return jsonify({"error": "Tag definition not supported"}), 501
 
                 created = []
                 errors = []
@@ -765,49 +749,16 @@ class RESTAPIPublisher(DataPublisher):
                         errors.append({"error": "Missing name", "data": tag_data})
                         continue
 
-                    initial_value = tag_data.get('initial_value', 0)
-                    tag_type = tag_data.get('type', 'float')
-
-                    # Convert type
-                    if tag_type == 'float':
-                        try:
-                            initial_value = float(initial_value)
-                        except (ValueError, TypeError):
-                            initial_value = 0.0
-                    elif tag_type == 'int':
-                        try:
-                            initial_value = int(initial_value)
-                        except (ValueError, TypeError):
-                            initial_value = 0
-                    elif tag_type == 'bool':
-                        if isinstance(initial_value, str):
-                            initial_value = initial_value.lower() in ('true', '1', 'yes')
-                        else:
-                            initial_value = bool(initial_value)
-
-                    if self.write_callback:
-                        success = self.write_callback(name, initial_value)
-                        if success:
-                            # Store metadata
-                            if not hasattr(self, 'tag_metadata'):
-                                self.tag_metadata = {}
-                            self.tag_metadata[name] = {
-                                'type': tag_type,
-                                'description': tag_data.get('description', ''),
-                                'units': tag_data.get('units', ''),
-                                'category': tag_data.get('category', 'general'),
-                                'min': tag_data.get('min'),
-                                'max': tag_data.get('max'),
-                                'simulate': tag_data.get('simulate', False),
-                                'simulation_type': tag_data.get('simulation_type', 'static'),
-                                'quality': 'Good',
-                                'writable': True
-                            }
-                            created.append(name)
-                        else:
-                            errors.append({"name": name, "error": "Write failed"})
+                    definition = self._tag_definition(tag_data)
+                    if self.define_callback(name, definition, persist=False):
+                        created.append(name)
                     else:
-                        errors.append({"name": name, "error": "Write not supported"})
+                        errors.append({"name": name, "error": "Define failed"})
+
+                # One durable write for the whole import. Tags defined above are
+                # already live; this is what makes them outlive the pod.
+                if created and self.persist_callback:
+                    self.persist_callback()
 
                 return jsonify({
                     "success": True,
@@ -988,6 +939,54 @@ class RESTAPIPublisher(DataPublisher):
     def set_delete_callback(self, callback):
         """Set callback used to remove a tag from the OPC UA address space."""
         self.delete_callback = callback
+
+    def set_define_callback(self, callback):
+        """
+        Set callback used to register a full tag definition.
+
+        `write_callback` only carries a value, so tags created through it were
+        registered as un-simulated regardless of what the request asked for —
+        the reason tag sets had to be hardcoded into the chart to do anything.
+        `define_callback(name, definition, persist=True)` registers the type,
+        the simulation model and writes the runtime store.
+        """
+        self.define_callback = callback
+
+    def set_persist_callback(self, callback):
+        """Set callback that flushes runtime tag definitions to disk."""
+        self.persist_callback = callback
+
+    # Keys the API owns rather than passes through to the tag definition.
+    _NON_DEFINITION_KEYS = ("name",)
+
+    def _tag_definition(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Build a tag definition from a request body.
+
+        Everything except `name` is passed through verbatim. Simulation models
+        each take their own keys — `on_seconds`, `driver_tag`, `drift_per_hour`
+        and so on — and an allow-list here would silently drop the ones it had
+        not been taught about, which is the failure mode that made the API
+        useless for anything but a static value.
+
+        `access` is translated to `writable` because the web UI sends the
+        former and the rest of the app reads the latter.
+        """
+        definition = {
+            key: value
+            for key, value in data.items()
+            if key not in self._NON_DEFINITION_KEYS
+        }
+
+        definition.setdefault("type", "float")
+        definition.setdefault("simulate", False)
+        if definition.get("simulate") and not definition.get("simulation_type"):
+            definition["simulation_type"] = "random"
+
+        if "access" in definition:
+            definition["writable"] = definition.pop("access") == "readwrite"
+
+        return definition
 
 
 class SparkplugBPublisher(DataPublisher):
@@ -1799,11 +1798,16 @@ class AlarmsPublisher(DataPublisher):
     Features:
     - Threshold-based alerting (>, <, ==, !=)
     - Priority levels (INFO, WARNING, CRITICAL)
-    - Debouncing (avoid spam)
+    - On-delay (`delay_seconds`): the condition must hold this long before the
+      alarm raises. Distinct from `debounce_seconds`, which only rate-limits
+      notifications for an alarm that has already raised. Process alarms are
+      almost always specified as a delay — "High-High -12 (10 min delay)" means
+      a cold room dipping past the limit for one scan is not an alarm, it is a
+      door being opened.
     - Alarm history
     - Multiple notification channels
     - Auto-clear when values return to normal
-    
+
     Because at 3 AM, you want to know if the reactor temperature is getting spicy.
     """
     
@@ -1825,6 +1829,7 @@ class AlarmsPublisher(DataPublisher):
                     "condition": ">",
                     "threshold": 25.0,
                     "priority": "CRITICAL",
+                    "delay_seconds": 600,
                     "debounce_seconds": 60,
                     "message": "Temperature is too high!"
                 }
@@ -1846,7 +1851,12 @@ class AlarmsPublisher(DataPublisher):
         # Active alarms tracking
         self.active_alarms = {}  # tag_name -> alarm_info
         self.alarm_history = deque(maxlen=self.history_size)
-        
+
+        # rule_key -> timestamp the condition was first seen, for on-delay.
+        # Cleared the moment the condition stops holding, so the delay always
+        # measures one continuous excursion rather than an accumulation.
+        self.pending_alarms = {}
+
         # Last notification time per rule (for debouncing)
         self.last_notification = {}  # rule_name -> timestamp
         
@@ -1859,6 +1869,7 @@ class AlarmsPublisher(DataPublisher):
                 "condition": rule.get("condition", ">"),
                 "threshold": rule.get("threshold"),
                 "priority": rule.get("priority", self.PRIORITY_WARNING),
+                "delay_seconds": float(rule.get("delay_seconds", 0)),
                 "debounce_seconds": rule.get("debounce_seconds", 60),
                 "message": rule.get("message", "Alarm triggered"),
                 "auto_clear": rule.get("auto_clear", True),
@@ -1892,28 +1903,42 @@ class AlarmsPublisher(DataPublisher):
         """
         if not self.enabled or not self.running:
             return
-        
+
+        # `or` would treat a legitimate 0.0 as absent. Harmless where a
+        # timestamp is only recorded for display, not where it is subtracted to
+        # measure an on-delay.
+        now = timestamp if timestamp is not None else time.time()
+
         # Check each rule that applies to this tag
         for rule in self.parsed_rules:
             if rule["tag"] != tag_name:
                 continue
-            
+
             # Evaluate condition
             triggered = self._evaluate_condition(value, rule["condition"], rule["threshold"])
-            
+
             rule_key = f"{rule['name']}_{tag_name}"
-            
+
             if triggered:
                 # Alarm condition met
                 if rule_key not in self.active_alarms:
+                    delay = rule["delay_seconds"]
+                    if delay > 0:
+                        first_seen = self.pending_alarms.setdefault(rule_key, now)
+                        if now - first_seen < delay:
+                            # Still inside the on-delay — not an alarm yet.
+                            continue
+                    self.pending_alarms.pop(rule_key, None)
                     # New alarm
                     self._trigger_alarm(rule, tag_name, value, timestamp)
                 else:
                     # Alarm already active, just update value
                     self.active_alarms[rule_key]["last_value"] = value
-                    self.active_alarms[rule_key]["last_update"] = timestamp or time.time()
+                    self.active_alarms[rule_key]["last_update"] = now
             else:
-                # Alarm condition not met
+                # Alarm condition not met — the excursion ended, so any part-way
+                # on-delay is abandoned rather than resumed on the next dip.
+                self.pending_alarms.pop(rule_key, None)
                 if rule_key in self.active_alarms and rule["auto_clear"]:
                     # Clear alarm
                     self._clear_alarm(rule, tag_name, value, timestamp)
@@ -1943,8 +1968,9 @@ class AlarmsPublisher(DataPublisher):
     def _trigger_alarm(self, rule: Dict, tag_name: str, value: Any, timestamp: Optional[float]):
         """Trigger a new alarm."""
         rule_key = f"{rule['name']}_{tag_name}"
-        now = timestamp or time.time()
-        
+        # Subtracted below for the debounce window — see publish().
+        now = timestamp if timestamp is not None else time.time()
+
         # Check debounce
         if rule_key in self.last_notification:
             time_since_last = now - self.last_notification[rule_key]
@@ -1985,8 +2011,8 @@ class AlarmsPublisher(DataPublisher):
     def _clear_alarm(self, rule: Dict, tag_name: str, value: Any, timestamp: Optional[float]):
         """Clear an active alarm."""
         rule_key = f"{rule['name']}_{tag_name}"
-        now = timestamp or time.time()
-        
+        now = timestamp if timestamp is not None else time.time()
+
         alarm = self.active_alarms[rule_key]
         alarm["status"] = "CLEARED"
         alarm["cleared_at"] = now
@@ -3681,7 +3707,12 @@ class DataTransformationPublisher(DataPublisher):
         self.source_tags = {}  # Store source tag values
         self.transformed_cache = {}  # Cache transformed values
         self.write_callback = None  # Callback to write transformed tags back
-        
+
+        # target_tag -> deque of (timestamp, value), for computed tags that
+        # declare a `window_seconds`. Bounded by time rather than by count, so
+        # the window means the same thing whatever the scan rate is.
+        self.computed_history = {}
+
         # Safe math functions for expressions
         self.safe_functions = {
             'abs': abs,
@@ -3729,10 +3760,12 @@ class DataTransformationPublisher(DataPublisher):
             return
         
         try:
-            # Store source value
+            # Store source value. `or` would treat a legitimate 0.0 as absent
+            # and substitute wall-clock time, which puts a sample outside any
+            # rolling window that a computed tag then measures against.
             self.source_tags[tag_name] = {
                 'value': value,
-                'timestamp': timestamp or time.time()
+                'timestamp': timestamp if timestamp is not None else time.time()
             }
             
             # Apply transformations for this source tag
@@ -3791,30 +3824,60 @@ class DataTransformationPublisher(DataPublisher):
         """Update computed tags that depend on the changed source tag."""
         for computed in self.computed_tags:
             try:
-                # Check if this computed tag depends on the changed tag
+                # `dependencies` is either a list of tag names, or a mapping of
+                # {expression_variable: tag_name}. The mapping form exists for
+                # tags whose names are not valid Python identifiers: a UNS path
+                # like "Power/Meter_01/CurrentA" is three divisions to eval(),
+                # not a variable, so it cannot be referenced without an alias.
                 dependencies = computed.get('dependencies', [])
-                if changed_tag not in dependencies:
+                if isinstance(dependencies, dict):
+                    aliases = dict(dependencies)
+                else:
+                    aliases = {dep: dep for dep in dependencies}
+                source_names = list(aliases.values())
+
+                # Check if this computed tag depends on the changed tag
+                if changed_tag not in source_names:
                     continue
-                
+
                 # Check if all dependencies are available
-                if not all(dep in self.source_tags for dep in dependencies):
+                if not all(name in self.source_tags for name in source_names):
                     continue
-                
+
                 # Build context with all source values
                 context = {
-                    dep: self.source_tags[dep]['value']
-                    for dep in dependencies
+                    alias: self.source_tags[name]['value']
+                    for alias, name in aliases.items()
                 }
-                
+
                 # Evaluate expression
                 expression = computed.get('expression')
                 target_tag = computed.get('target_tag')
-                
+
                 if expression and target_tag:
                     result = self._evaluate_expression(expression, context)
-                    timestamp = max(self.source_tags[dep]['timestamp'] for dep in dependencies)
+                    timestamp = max(self.source_tags[name]['timestamp'] for name in source_names)
+
+                    # Optional rolling average over a time window — which is
+                    # what a "rolling 15-minute demand" point actually is.
+                    # Without it the tag is instantaneous power under a
+                    # misleading name.
+                    window_seconds = float(computed.get('window_seconds', 0) or 0)
+                    if window_seconds > 0:
+                        history = self.computed_history.setdefault(target_tag, deque())
+                        history.append((timestamp, result))
+                        cutoff = timestamp - window_seconds
+                        while history and history[0][0] < cutoff:
+                            history.popleft()
+                        # Rounded because a mean of rounded samples is not
+                        # itself rounded — the expression's own round() is
+                        # applied per sample, and the average of those lands on
+                        # 42.872142857142855, which is what the gateway would
+                        # then publish and every consumer would display.
+                        result = round(sum(v for _, v in history) / len(history), 4)
+
                     self._write_transformed_tag(target_tag, result, timestamp)
-                
+
             except Exception as e:
                 self.logger.error(f"Error updating computed tag {computed.get('target_tag')}: {e}")
     

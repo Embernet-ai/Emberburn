@@ -5,6 +5,108 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.15] - 2026-08-13: Tags Belong In The App, Not In The Chart
+
+### Changed — tag sets are no longer a chart concern
+
+`config.tags` now defaults to **empty**, and a site's tag list does not belong
+in it. Tags are created in the running application — the web UI, or
+`POST /api/tags/create` and `/api/tags/bulk` — and EmberBurn persists them to
+its data volume, so they survive restarts, upgrades and rescheduling.
+
+Two things had to be fixed before that was actually true:
+
+- **A tag created through the API never simulated.** `create_tag` routed through
+  `write_callback` → `write_tag`, which registers a tag as
+  `{"simulate": False}` and discards everything else. `simulation_type`, `min`,
+  `max` and every model-specific key were kept only in the REST publisher's own
+  metadata dict, which nothing reads when updating values. So a tag made in the
+  UI sat there at its initial value forever, and the only way to get a
+  simulating tag was to bake it into the chart. Added
+  `OPCUAServer.define_tag(name, definition)` and a `define_callback`, which
+  registers the type, the full simulation config and the metadata
+- **Nothing survived a restart.** Runtime-authored definitions are now written
+  to `EMBERBURN_TAG_STORE` (default `/app/data/tags.json`, i.e. the persistent
+  volume) and layered over the config file at startup. Written via a temp file
+  and atomic replace, so a restart mid-import cannot leave a store that fails
+  to parse. A corrupt store is logged and skipped rather than taking startup
+  down with it. Deletes persist too, or the tag returns on the next restart
+- `/api/tags/bulk` writes the store once for the whole import instead of once
+  per tag, and passes model-specific keys through verbatim — an allow-list
+  would silently drop the keys of any model it had not been taught
+
+**Note for anyone automating this:** EmberBurn refuses anonymous writes. With no
+`EMBERBURN_API_KEY` configured it generates an ephemeral per-pod token that the
+web UI receives and no external caller can know, so a seeding script needs a
+configured key (`security.apiKey` / `security.existingSecret`).
+
+### Fixed — the chart's config was never read
+
+- **The chart's tags and publishers did nothing at all.** The chart mounted
+  `tags.json` and `publishers.json` as two ConfigMaps, but `opcua_server.py`
+  takes a single `-c` file and reads `tags` and `publishers` as sections of it.
+  No template emitted `command:`/`args:`, so the image `CMD` won and the pod ran
+  `config/config_web_ui.json` from inside the image — ten demo tags, every
+  publisher off. Verified on the live Fragua deployment: both files were mounted
+  under `/app/config/` and neither was ever opened. Every value anyone set in
+  `config.tags` or `config.publishers` since the chart existed was ignored,
+  silently, while the pod reported healthy
+- Chart now renders ONE ConfigMap containing `{"tags": …, "publishers": …}` and
+  passes `-c /app/config/emberburn.json`
+- **`config.publishers.sparkplug` → `config.publishers.sparkplug_b`.**
+  `publishers.py` reads `sparkplug_b`, as does every config file in the image.
+  The chart wrote a key nothing looked at, so `enabled: true` was a no-op even
+  once the file was loadable. `questions.yaml` and `NOTES.txt` updated to match
+- **Tags with `simulate: false` were never published.** The update loop skipped
+  them before reaching the publish call, so setpoints, mode strings and anything
+  written by the transformation publisher were declared in the Sparkplug DBIRTH
+  and then never sent again. Values are now published every scan whether or not
+  the tag is simulated
+- **`timestamp or time.time()` treated a legitimate `0.0` as absent** in the
+  alarms and transformation publishers. Harmless where a timestamp is only
+  recorded, wrong where one is subtracted — it corrupted alarm on-delays and
+  rolling windows
+
+### Added
+
+- **Five behavioural simulation types.** `random`/`sine`/`increment` are
+  independent and stateless, which makes `bool` + `random` a coin flip every
+  scan and leaves no tag related to any other. Sites do not behave that way:
+  - `duty_cycle` — runs on/off for configured durations, with jitter
+  - `event` — rare pulse of random duration with exponentially distributed
+    gaps, and an `overrun_probability` that occasionally stretches one past its
+    normal length so duration alarms have something to catch
+  - `walk` — bounded random walk with optional drift and `reset_on_max`, for
+    things that creep toward a limit and then get serviced
+  - `thermostat` — pulled toward `setpoint - band` while a driver boolean is
+    on, drifting toward `ambient` when it is off
+  - `follows` — mirrors another tag after a lag, with `mismatch_probability`
+    for a feedback that sticks, which is what command/feedback alarms exist for
+- **`hysteresis`** — two-position control of a device from a process tag, with
+  a differential and short-cycle protection. Prefer it over `duty_cycle`
+  wherever the plant has a controller: a duty cycle is open-loop, so its
+  process settles wherever the rates happen to balance rather than at setpoint,
+  and wanders whenever anything perturbs it. Simulations now evaluate in rank
+  order (independent → `hysteresis` → `thermostat`/`follows`) so a control loop
+  resolves in the physically correct direction
+- **`delay_seconds` on alarm rules** — an on-delay, distinct from
+  `debounce_seconds`, which only rate-limits notifications for an alarm already
+  raised. Process alarms are specified as delays ("High-High -12, 10 min
+  delay"); without one, a room past its limit for a single scan is an alarm
+- **Computed tags accept aliased dependencies** — `dependencies` may be a
+  `{variable: tag_name}` mapping. Required for UNS-style names, since
+  `Power/Meter_01/CurrentA` is three divisions to `eval()`, not a variable
+- **`window_seconds` on a computed tag** — rolling time-window average, so a
+  "rolling 15-minute demand" point is one, rather than instantaneous power under
+  a misleading name
+- `test_simulation.py` — 36 checks over the models, the alarm on-delay and the
+  computed-tag changes
+
+### Note
+
+- Alarm rules match on **tag name**. The `"tag": "ns=2;i=2"` OPC node ids in the
+  bundled example configs match nothing and have never fired
+
 ## [4.1.14] - 2026-08-10: Revert The groupId Derivation
 
 ### Reverted

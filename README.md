@@ -89,6 +89,39 @@ So: 15 protocols, 15 of which actually run. Took an embarrassing audit to get th
 
 Tags are the heartbeat of any industrial system, and Emberburn lets you define them all through JSON config files because YAML had its chance and blew it.
 
+### Create tags in the app, not in the chart
+
+**Do not put a site's tag list in `config.tags` in the Helm chart.** It defaults
+to empty and should stay that way. Tags are created in the running gateway:
+
+```bash
+# one tag
+curl -X POST http://emberburn:5000/api/tags/create \
+  -H 'Content-Type: application/json' -H "X-EmberBurn-Token: $KEY" \
+  -d '{"name":"Refrigeration/ColdRoom_01/AirTemperature","type":"float",
+       "units":"°C","initial_value":-20.0,"simulate":true,
+       "simulation_type":"thermostat","driver_tag":"Refrigeration/ColdRoom_01/CompressorRun",
+       "setpoint":-20.0,"band":2.0,"pull_rate":0.35}'
+
+# or a whole site at once
+curl -X POST http://emberburn:5000/api/tags/bulk \
+  -H 'Content-Type: application/json' -H "X-EmberBurn-Token: $KEY" \
+  -d @site-tags.json
+```
+
+…or just click them in at `:5000`. Either way EmberBurn writes the definitions
+to its data volume (`EMBERBURN_TAG_STORE`, default `/app/data/tags.json`) and
+reloads them at startup, so they outlive restarts, upgrades and rescheduling.
+
+Keep the authoritative list in the site's own repo as data and push it in with a
+script. A tag list baked into a chart needs a values edit, a `helm upgrade` and
+usually a chart release to move one setpoint — that isn't a gateway, it's a
+config file with extra steps.
+
+**Writes need a token.** With no `EMBERBURN_API_KEY` configured, EmberBurn
+generates an ephemeral per-pod token: the web UI gets it, external callers
+can't. Set `security.apiKey` (or `security.existingSecret`) before automating.
+
 Every tag gets:
 - **A data type** (`float`, `int`, `string`, `bool`) because the real world has variety
 - **A simulation mode**: how the value changes over time:
@@ -98,6 +131,61 @@ Every tag gets:
   - `static`: Doesn't change. For when you want your simulation to have the personality of a brick.
 - **Min/max bounds**: Keep your fake data within the realm of plausibility (or don't, I'm not your dad)
 - **Metadata**: Engineering units, descriptions, alarm thresholds, whatever you want to slap on there
+
+### Behavioural modes (use these for anything a human will look at)
+
+The four above are independent and stateless. That's fine for a smoke test and
+useless for a demo: `bool` + `random` flips a coin every scan, so a compressor
+that "runs" 50% of every two seconds, and no tag has anything to do with any
+other tag. Plants don't work like that. These do:
+
+| Mode | What it is | Key config |
+|---|---|---|
+| `duty_cycle` | Boolean that runs on for a while, off for a while | `on_seconds`, `off_seconds`, `jitter_pct` |
+| `hysteresis` | Boolean under two-position control of another tag | `process_tag`, `setpoint`/`setpoint_tag`, `differential`, `invert`, `min_on_seconds`, `min_off_seconds` |
+| `event` | Boolean that's normally false and pulses rarely | `mtbe_seconds`, `duration_min`, `duration_max`, `overrun_probability`, `overrun_multiplier` |
+| `walk` | Bounded random walk, optionally drifting | `step`, `drift_per_hour`, `min`, `max`, `reset_on_max` |
+| `thermostat` | Value pulled toward setpoint by a driver boolean, drifting to ambient when it's off | `setpoint`/`setpoint_tag`, `driver_tag`, `band`, `pull_rate`, `rise_rate`, `ambient`, `noise` |
+| `follows` | Mirrors another tag after a lag, and sometimes doesn't | `source_tag`, `lag_seconds`, `mismatch_probability`, `mismatch_seconds` |
+
+Three things worth knowing:
+
+**Use `hysteresis`, not `duty_cycle`, wherever the plant has a controller.** A
+duty cycle runs to a clock regardless of the process, so its temperature settles
+wherever the cooling and warming rates happen to cancel — which is not the
+setpoint, and wanders the moment anything perturbs it. Closing the loop is what
+makes a cold room sit at the number on its setpoint tag:
+
+```json
+"ColdRoom_01/AirTemperature": {
+  "type": "float", "initial_value": -20.0, "units": "°C",
+  "simulate": true, "simulation_type": "thermostat",
+  "setpoint_tag": "ColdRoom_01/TemperatureSetpoint",
+  "driver_tag": "ColdRoom_01/CompressorRun",
+  "band": 2.0, "pull_rate": 0.35, "rise_rate": 0.22, "ambient": 8.0
+},
+"ColdRoom_01/CompressorRun": {
+  "type": "bool", "initial_value": true,
+  "simulate": true, "simulation_type": "hysteresis",
+  "process_tag": "ColdRoom_01/AirTemperature",
+  "setpoint_tag": "ColdRoom_01/TemperatureSetpoint",
+  "differential": 1.5, "min_on_seconds": 180, "min_off_seconds": 180
+}
+```
+
+That's circular on purpose, and it resolves: simulations run in rank order
+(independent → `hysteresis` → `thermostat`/`follows`), so the controller reads
+the temperature the room reached last scan, exactly like a real one sampling its
+probe.
+
+**`overrun_probability` and `drift_per_hour` are how alarms ever fire.** A door
+that always closes in 90 seconds never trips a "door open > 5 min" alarm, and a
+filter differential pressure that jitters around 50 Pa never reaches its High.
+Give the rare case somewhere to go and the alarm list stops being decorative.
+
+**Tag names can carry a UNS path.** `Refrigeration/ColdRoom_01/AirTemperature`
+is a legal tag name and survives Sparkplug as a metric name, so brokers that
+expand metrics into topics rebuild the hierarchy for free.
 
 Here's the vibe:
 

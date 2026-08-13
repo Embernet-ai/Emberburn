@@ -69,3 +69,7 @@ Thumbs.db
 
 # Local configuration overrides
 tags_config.local.json
+# Local run artifacts — the SQLite persistence publisher writes here when
+# started outside a container, where /app/data does not exist.
+emberburn_data.db
+emberburn.db

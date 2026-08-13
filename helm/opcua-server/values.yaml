@@ -135,51 +135,31 @@ emberburn:
 
 # Configuration - Tags and Publishers
 config:
-  # RESERVED — not yet wired into any template. The chart always renders the
-  # tags/publishers ConfigMaps from the values below.
-  # Use existing config from existing chart or define new
+  # RESERVED — not yet wired into any template.
   useExisting: false
 
-  # Config file to use (must exist in container)
-  configFile: "config_transformations_demo.json"
-
-  # Custom tags configuration (JSON)
-  tags:
-    Temperature:
-      type: "float"
-      initial_value: 20.0
-      simulate: true
-      simulation_type: "sine"
-      min: 15.0
-      max: 30.0
-      units: "°C"
-      description: "Ambient temperature"
-
-    Pressure:
-      type: "float"
-      initial_value: 101.3
-      simulate: true
-      simulation_type: "random"
-      min: 95.0
-      max: 105.0
-      units: "kPa"
-      description: "System pressure"
-
-    RunHours:
-      type: "int"
-      initial_value: 0
-      simulate: true
-      simulation_type: "increment"
-      increment: 1
-      max: 10000
-      reset_on_max: true
-      description: "Equipment run hours"
-
-    SystemStatus:
-      type: "string"
-      initial_value: "Running"
-      simulate: false
-      description: "System operational status"
+  # ── Tags: DO NOT PUT A SITE'S TAG LIST HERE ────────────────────────────
+  #
+  # Empty on purpose, and it should stay empty. Tags are created in the running
+  # application — the web UI at :5000, or POST /api/tags/create and
+  # /api/tags/bulk — and EmberBurn persists them to its data volume, so they
+  # survive restarts, upgrades and rescheduling without anyone editing a chart.
+  #
+  # A tag list baked in here is a tag list that needs a values edit, a helm
+  # upgrade and usually a chart release to change one setpoint. That is not a
+  # gateway, it is a config file with extra steps.
+  #
+  # Keep the site's tag list in the site's own repo as data (CSV/JSON) and push
+  # it in with a seed script. Everything set through the API is durable; this
+  # map exists only for the rare case of a tag that must exist before the app
+  # accepts its first request.
+  #
+  # `simulation_type` accepts: random | increment | sine | static, plus the
+  # behavioural models — duty_cycle, hysteresis, event, walk, thermostat,
+  # follows. Use the latter for anything a person will look at: a boolean on
+  # `random` is a coin flip every scan, and nothing on the first four relates to
+  # anything else. See the EmberBurn README for each model's keys.
+  tags: {}
 
   # Publishers configuration
   publishers:
@@ -239,12 +219,17 @@ config:
     # a wrong answer pre-filled for every tenant that is not Fireball, and it
     # fails silently: the broker refuses the publish and returns failure instead
     # of raising, so the gateway looks healthy and sends nothing.
-    sparkplug:
+    # The key is `sparkplug_b`, matching publishers.py — which reads
+    # `publishers_config.get("sparkplug_b")` and every config file shipped in
+    # the image. This was `sparkplug` until 4.1.15, so the block rendered into
+    # a section nothing ever looked at: enabling it did nothing, quietly.
+    sparkplug_b:
       enabled: false
       broker: "mosquitto-mqtt-pod"
       port: 1883
       group_id: ""
       edge_node_id: "EmberBurn"
+      device_id: "EdgeDevice"
 
       # ── Broker credentials ────────────────────────────────────────────
       # AnvilMQ requires authentication (userManagement enabled by default

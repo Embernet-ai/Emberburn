@@ -234,7 +234,7 @@ questions:
       type: password
       default: ""
 
-- variable: config.publishers.sparkplug.enabled
+- variable: config.publishers.sparkplug_b.enabled
   label: Enable Sparkplug B
   description: "Enable Sparkplug B protocol (Ignition Edge compatibility)"
   type: boolean
@@ -242,21 +242,21 @@ questions:
   group: "Protocols"
   show_subquestion_if: true
   subquestions:
-    - variable: config.publishers.sparkplug.broker
+    - variable: config.publishers.sparkplug_b.broker
       label: MQTT Broker Address
       description: "MQTT broker for Sparkplug B"
       type: string
       default: "mosquitto-mqtt-pod"
       required: true
     
-    - variable: config.publishers.sparkplug.group_id
+    - variable: config.publishers.sparkplug_b.group_id
       label: Group ID
       description: "Sparkplug B Group ID"
       type: string
       default: "Fireball"
       required: true
     
-    - variable: config.publishers.sparkplug.edge_node_id
+    - variable: config.publishers.sparkplug_b.edge_node_id
       label: Edge Node ID
       description: "Sparkplug B Edge Node ID"
       type: string
