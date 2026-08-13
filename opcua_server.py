@@ -34,7 +34,7 @@ DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024 * 1024
 # between the independent types and `thermostat` breaks the cycle in the
 # physically correct place — the controller reads the temperature the room
 # reached last scan, exactly like a real one sampling its probe.
-SIM_RANK = {"hysteresis": 1, "thermostat": 2, "follows": 2}
+SIM_RANK = {"hysteresis": 1, "thermostat": 2, "follows": 2, "accumulate": 2}
 DEFAULT_SIM_RANK = 0
 
 # Distinguishes "no value recorded yet" from a legitimately recorded False.
@@ -531,6 +531,43 @@ class OPCUAServer:
             self.logger.error(f"Error writing runtime tag store {path}: {e}")
             return False
 
+    def sync_computed_tags(self):
+        """
+        Hand every `computed` tag to the transformation publisher.
+
+        A tag whose `simulation_type` is `computed` carries an `expression` and
+        its `dependencies` in its own definition, so it is created, persisted
+        and deleted through the same tag API as everything else instead of
+        living in chart values. This collects them into the shape the
+        transformation publisher wants and replaces its set wholesale, which
+        keeps deletes working — an incremental add would leave a removed tag
+        being computed forever.
+        """
+        if not self.publisher_manager:
+            return
+
+        computed = []
+        for name, data in self.tags.items():
+            config = data.get("config", {})
+            if config.get("simulation_type") != "computed":
+                continue
+            if not config.get("expression"):
+                self.logger.warning(f"Computed tag {name} has no expression, skipping")
+                continue
+            entry = {
+                "target_tag": name,
+                "expression": config["expression"],
+                "dependencies": config.get("dependencies", {}),
+                "description": config.get("description", ""),
+            }
+            if config.get("window_seconds"):
+                entry["window_seconds"] = config["window_seconds"]
+            computed.append(entry)
+
+        for publisher in self.publisher_manager.publishers:
+            if hasattr(publisher, "set_computed_tags"):
+                publisher.set_computed_tags(computed)
+
     def define_tag(self, tag_name: str, definition: dict, persist: bool = True) -> bool:
         """
         Create or redefine a tag from a full definition.
@@ -597,6 +634,7 @@ class OPCUAServer:
                 "simulation_type": definition.get("simulation_type"),
             }
             self._setup_tag_metadata()
+            self.sync_computed_tags()
 
             if persist:
                 self.save_runtime_tags()
@@ -762,6 +800,10 @@ class OPCUAServer:
                     new_value = self.generate_thermostat_value(tag_name, tag_data, current_value, timestamp)
                 elif sim_type == "follows":
                     new_value = self.generate_follows_value(tag_name, tag_data, current_value, timestamp)
+                elif sim_type == "accumulate":
+                    new_value = self.generate_accumulate_value(tag_name, tag_data, current_value, timestamp)
+                elif sim_type == "clock":
+                    new_value = self.generate_clock_value(tag_name, tag_data)
                 else:
                     new_value = None
 
@@ -1206,6 +1248,76 @@ class OPCUAServer:
 
         return current_value
 
+    def generate_accumulate_value(self, tag_name, tag_data, current_value, now):
+        """
+        Integrate another tag over time — the running total behind an energy
+        counter.
+
+        kWh is the integral of kW, not a counter that ticks. `increment` climbs
+        at a fixed rate regardless of load, so a site drawing 20 kW and one
+        drawing 140 kW would bill identically, and the totaliser would disagree
+        with the power reading right next to it on the same screen.
+
+        Config: source_tag, scale (multiplier on source-units-per-hour), max,
+                reset_on_max
+
+        Returns:
+            float: the accumulated total
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        scale = float(config.get("scale", 1.0))
+        elapsed = max(0.0, now - state.get("last_update", now))
+        state["last_update"] = now
+
+        # The running total is kept at full precision in state, NOT read back
+        # from the published value. Each scan adds a small amount — at a 2s
+        # scan, 60 kW is 0.0333 kWh — and re-reading a value rounded for
+        # display discards the remainder every single time. That bias is not
+        # small: it lost exactly 10% over one simulated hour.
+        total = state.get("total")
+        if total is None:
+            try:
+                total = float(current_value)
+            except (TypeError, ValueError):
+                total = float(config.get("initial_value", 0.0))
+
+        rate = self.referenced_number(config.get("source_tag"), 0.0)
+        total += rate * scale * (elapsed / 3600.0)
+
+        max_val = config.get("max")
+        if max_val is not None and total >= float(max_val):
+            total = float(config.get("initial_value", 0.0)) if config.get("reset_on_max", False) else float(max_val)
+
+        state["total"] = total
+
+        if tag_data["type"] == "int":
+            return int(total)
+        return round(total, 2)
+
+    def generate_clock_value(self, tag_name, tag_data):
+        """
+        Expose a component of the current local time.
+
+        HMIs commonly show the plant clock from tags rather than the client's
+        own clock, so the displayed time is the controller's. Simulating those
+        with `random` puts a number that is not a time on the screen, which is
+        the first thing anyone notices.
+
+        Config: part — hour | minute | second (default: second)
+
+        Returns:
+            int: the requested component of local time
+        """
+        part = str(tag_data["config"].get("part", "second")).lower()
+        local = time.localtime()
+        if part == "hour":
+            return local.tm_hour
+        if part == "minute":
+            return local.tm_min
+        return local.tm_sec
+
     def print_server_info(self):
         """Print server startup information."""
         print("\n" + "="*60)
@@ -1250,6 +1362,12 @@ class OPCUAServer:
                 self._setup_write_callbacks()
                 
                 self.publisher_manager.start_all()
+
+                # Computed tags restored from the runtime store were registered
+                # before any publisher existed, so hand them over now that one
+                # does — otherwise they stay at their initial value until
+                # someone happens to redefine a tag.
+                self.sync_computed_tags()
             
             self.print_server_info()
             

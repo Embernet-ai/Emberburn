@@ -5,6 +5,33 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.16] - 2026-08-13: Computed Tags Are Tags, Plus Energy And Clocks
+
+### Changed
+
+- **Computed tags are authored through the tag API like everything else.** They
+  were the last thing still requiring chart values: `config.publishers.
+  data_transformation.computed_tags`. But a computed tag has a name, a type and
+  a value on the wire — it is a tag. Declare `simulation_type: computed` with an
+  `expression` and `dependencies` in the tag definition and it is created,
+  persisted and deleted through the same API as the rest. The server collects
+  them and replaces the transformation publisher's set wholesale, so deleting
+  one actually stops it being computed instead of leaving it running forever
+
+### Added
+
+- **`accumulate`** — integrates another tag over time, for energy counters.
+  kWh is the integral of kW, not a counter that ticks: `increment` climbs at a
+  fixed rate regardless of load, so a site drawing 20 kW and one drawing 140 kW
+  would total identically and the counter would visibly disagree with the power
+  reading next to it on the same screen. The running total is kept at full
+  precision in state rather than read back from the published value — rounding
+  a per-scan increment for display and then accumulating from it lost exactly
+  10% over one simulated hour
+- **`clock`** — exposes hour/minute/second of local time. HMIs commonly show
+  the plant clock from tags rather than the client's, and simulating those with
+  `random` puts a number that is not a time on the screen
+
 ## [4.1.15] - 2026-08-13: Tags Belong In The App, Not In The Chart
 
 ### Changed — tag sets are no longer a chart concern

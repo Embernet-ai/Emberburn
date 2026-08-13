@@ -513,6 +513,72 @@ def test_alarm_matches_by_tag_name():
           "confirms rules must reference tag names")
 
 
+# ── accumulate / clock ────────────────────────────────────────────────────
+def test_accumulate_integrates_its_source():
+    """kWh is the integral of kW, not a counter that ticks at a fixed rate."""
+    server = build_server({
+        "KW": ("float", 0.0, {"simulate": False}),
+        "KWH": ("float", 0.0, {
+            "simulate": True, "simulation_type": "accumulate",
+            "source_tag": "KW",
+        }),
+    })
+    tag = server.tags["KWH"]
+
+    # One hour at a steady 60 kW must add 60 kWh.
+    server.tags["KW"]["variable"].set_value(60.0)
+    total = 0.0
+    for scan in range(0, 3600, 2):
+        total = server.generate_accumulate_value("KWH", tag, total, float(scan))
+    check("accumulate integrates over an hour", abs(total - 60.0) < 0.5, f"got {total}")
+
+    # Doubling the load must double the rate, which `increment` cannot express.
+    server.tags["KW"]["variable"].set_value(120.0)
+    before = total
+    for scan in range(3600, 7200, 2):
+        total = server.generate_accumulate_value("KWH", tag, total, float(scan))
+    check("accumulate tracks load", abs((total - before) - 120.0) < 0.5,
+          f"added {total - before:.2f}")
+
+
+def test_accumulate_is_monotonic_and_zero_at_zero_load():
+    server = build_server({
+        "KW": ("float", 0.0, {"simulate": False}),
+        "KWH": ("float", 500.0, {
+            "simulate": True, "simulation_type": "accumulate", "source_tag": "KW",
+        }),
+    })
+    tag = server.tags["KWH"]
+
+    total = 500.0
+    for scan in range(0, 1800, 2):
+        new = server.generate_accumulate_value("KWH", tag, total, float(scan))
+        if new < total:
+            check("accumulate never runs backwards", False, f"{total} -> {new}")
+            return
+        total = new
+    check("accumulate never runs backwards", True)
+    check("accumulate holds still at zero load", abs(total - 500.0) < 0.01, f"got {total}")
+
+
+def test_clock_reports_real_time():
+    import time as _time
+    server = build_server({
+        "Hora_H": ("int", 0, {"simulate": True, "simulation_type": "clock", "part": "hour"}),
+        "Hora_M": ("int", 0, {"simulate": True, "simulation_type": "clock", "part": "minute"}),
+        "Hora_S": ("int", 0, {"simulate": True, "simulation_type": "clock", "part": "second"}),
+    })
+
+    now = _time.localtime()
+    hour = server.generate_clock_value("Hora_H", server.tags["Hora_H"])
+    minute = server.generate_clock_value("Hora_M", server.tags["Hora_M"])
+    second = server.generate_clock_value("Hora_S", server.tags["Hora_S"])
+
+    check("clock hour matches local time", hour == now.tm_hour, f"{hour} vs {now.tm_hour}")
+    check("clock minute in range", 0 <= minute <= 59, f"{minute}")
+    check("clock second in range", 0 <= second <= 59, f"{second}")
+
+
 # ── runtime tag authoring ─────────────────────────────────────────────────
 class FakeNode:
     """Stand-in for the OPC UA device folder — only add_variable is exercised."""
@@ -725,6 +791,9 @@ if __name__ == "__main__":
         test_alarm_on_delay_raises_when_sustained,
         test_alarm_without_delay_is_immediate,
         test_alarm_matches_by_tag_name,
+        test_accumulate_integrates_its_source,
+        test_accumulate_is_monotonic_and_zero_at_zero_load,
+        test_clock_reports_real_time,
         test_defined_tag_keeps_its_simulation_config,
         test_runtime_tags_survive_a_restart,
         test_deleting_a_runtime_tag_sticks,

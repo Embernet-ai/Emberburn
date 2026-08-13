@@ -147,6 +147,9 @@ other tag. Plants don't work like that. These do:
 | `walk` | Bounded random walk, optionally drifting | `step`, `drift_per_hour`, `min`, `max`, `reset_on_max` |
 | `thermostat` | Value pulled toward setpoint by a driver boolean, drifting to ambient when it's off | `setpoint`/`setpoint_tag`, `driver_tag`, `band`, `pull_rate`, `rise_rate`, `ambient`, `noise` |
 | `follows` | Mirrors another tag after a lag, and sometimes doesn't | `source_tag`, `lag_seconds`, `mismatch_probability`, `mismatch_seconds` |
+| `accumulate` | Integrates another tag over time — energy counters | `source_tag`, `scale`, `max`, `reset_on_max` |
+| `clock` | Hour / minute / second of local time | `part` |
+| `computed` | Value from an expression over other tags | `expression`, `dependencies`, `window_seconds` |
 
 Three things worth knowing:
 
@@ -186,6 +189,23 @@ Give the rare case somewhere to go and the alarm list stops being decorative.
 **Tag names can carry a UNS path.** `Refrigeration/ColdRoom_01/AirTemperature`
 is a legal tag name and survives Sparkplug as a metric name, so brokers that
 expand metrics into topics rebuild the hierarchy for free.
+
+**A computed tag is just a tag with an expression.** `dependencies` maps
+expression variables to tag names, which is required for UNS paths — to
+`eval()`, `Power/Meter_01/CurrentA` is three divisions, not a variable. Add
+`window_seconds` for a rolling average, which is what a "15-minute demand"
+point actually is:
+
+```json
+"Power/Meter_01/TotalRealPower": {
+  "type": "float", "units": "kW", "simulate": false,
+  "simulation_type": "computed",
+  "expression": "round(sqrt(3) * v * ((ia + ib + ic) / 3) * pf / 1000, 2)",
+  "dependencies": {"v": "Power/Meter_01/VoltageAB", "ia": "Power/Meter_01/CurrentA",
+                   "ib": "Power/Meter_01/CurrentB", "ic": "Power/Meter_01/CurrentC",
+                   "pf": "Power/Meter_01/PowerFactor"}
+}
+```
 
 Here's the vibe:
 
