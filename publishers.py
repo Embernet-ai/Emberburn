@@ -96,9 +96,145 @@ except ImportError:
 
 import sqlite3
 import threading
+import random
 import re
 import math
 from typing import Callable
+
+
+class ConnectionBackoff:
+    """
+    Paces retries against an endpoint that is not answering.
+
+    A dead endpoint used to be retried at the scan rate — one attempt per tag,
+    per scan, for as long as it stayed dead. This spaces the attempts out
+    instead: `initial` seconds, doubling up to `maximum`, so a broker that is
+    gone for an hour costs a couple of dozen attempts rather than a hundred
+    thousand.
+
+    The wait carries jitter because EmberBurn runs on a fleet of edge nodes
+    pointed at the same broker. Without it, every gateway that lost that broker
+    retries on the same tick and they all pile back on at the same instant when
+    it returns.
+    """
+
+    def __init__(self, initial: float = 1.0, maximum: float = 60.0,
+                 factor: float = 2.0, jitter: float = 0.2):
+        self.initial = float(initial)
+        self.maximum = float(maximum)
+        self.factor = float(factor)
+        self.jitter = float(jitter)
+        self.failures = 0
+        # Monotonic deadline for the next attempt. 0 means "try immediately",
+        # which is what a freshly reset backoff should do.
+        self._next_attempt = 0.0
+
+    @property
+    def delay(self) -> float:
+        """The current wait between attempts, before jitter is applied."""
+        if self.failures <= 0:
+            return self.initial
+        return min(self.initial * (self.factor ** (self.failures - 1)),
+                   self.maximum)
+
+    def ready(self) -> bool:
+        """True once enough time has passed to try again."""
+        return time.monotonic() >= self._next_attempt
+
+    def fail(self) -> float:
+        """Record a failed attempt, arm the next one, and return the wait."""
+        self.failures += 1
+        wait = self.delay
+        if self.jitter:
+            wait += wait * self.jitter * (random.random() * 2 - 1)
+        wait = max(0.0, wait)
+        self._next_attempt = time.monotonic() + wait
+        return wait
+
+    def reset(self):
+        """Success, or a fresh outage — the next failure starts from scratch."""
+        self.failures = 0
+        self._next_attempt = 0.0
+
+
+class ErrorThrottle:
+    """
+    Collapses a repeating error into one log line per state change.
+
+    Every publisher exception used to get its own line. That is one line per
+    tag, per scan: when a broker died during a 90-tag scan cycle it produced
+    63,720 identical lines in half an hour, which buries the one line that
+    explains what actually broke and keeps an edge node's CPU and disk busy
+    doing it.
+
+    So: log the first failure, stay quiet while nothing changes, emit a count
+    every `summary_interval` so an ongoing outage stays visible, and log once
+    more when it clears. A *different* message counts as a state change and is
+    logged immediately — a target that goes from "connection refused" to
+    "authentication failed" is telling you something new.
+
+    Suppression is log-only. Callers still record their Prometheus error
+    counters on every single failure, so the metrics stay exact no matter how
+    quiet the logs get.
+    """
+
+    def __init__(self, logger: logging.Logger, summary_interval: float = 60.0):
+        self.logger = logger
+        self.summary_interval = float(summary_interval)
+        self._state: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.Lock()
+
+    def record(self, key: str, message: str):
+        """Note a failure against `key`, logging only when it is worth a line."""
+        now = time.monotonic()
+
+        with self._lock:
+            state = self._state.get(key)
+
+            if state is None or state["message"] != message:
+                # A changed message earns its own line, but it is still the same
+                # unbroken run of failures — carry the running total forward so
+                # the recovery line reports what the outage really cost.
+                total = state["total"] + 1 if state is not None else 1
+                self._state[key] = {
+                    "message": message,
+                    "suppressed": 0,
+                    "total": total,
+                    "last_log": now,
+                }
+                self.logger.error(message)
+                return
+
+            state["suppressed"] += 1
+            state["total"] += 1
+
+            since = now - state["last_log"]
+            if since < self.summary_interval:
+                return
+
+            suppressed = state["suppressed"]
+            state["suppressed"] = 0
+            state["last_log"] = now
+
+        self.logger.error(
+            f"{message} — still failing, {suppressed} further occurrence(s) "
+            f"in the last {since:.0f}s"
+        )
+
+    def clear(self, key: str):
+        """Note a success against `key`, logging recovery if it had been failing."""
+        # Fast path: nothing is failing, which is the normal case and runs once
+        # per tag per publisher per scan. Do not take the lock for it.
+        if key not in self._state:
+            return
+
+        with self._lock:
+            state = self._state.pop(key, None)
+
+        if state is not None:
+            self.logger.info(
+                f"{key} recovered after {state['total']} consecutive error(s)"
+            )
 
 
 class DataPublisher(ABC):
@@ -1028,6 +1164,22 @@ class SparkplugBPublisher(DataPublisher):
         self._declared_tags = set()
         self._lock = threading.Lock()
 
+        # Reconnect pacing. Both knobs are optional and default to something
+        # sane, so the Helm chart's rendered config needs no new keys.
+        self._backoff = ConnectionBackoff(
+            initial=config.get("reconnect_initial_seconds", 1.0),
+            maximum=config.get("reconnect_max_seconds", 60.0),
+        )
+        self._monitor_thread = None
+        self._monitor_stop = threading.Event()
+        self._declared_count = 0
+
+        # Publishes skipped while the broker is down, reported once on recovery.
+        # Bumped from the scan thread and read from the monitor thread without a
+        # lock: the cost of a torn read is one slightly-off number in one log
+        # line, which is not worth serialising the hot path for.
+        self._dropped_while_down = 0
+
     def _datatype_for(self, tag_name: str, value: Any):
         """
         Resolve the Sparkplug datatype for a tag.
@@ -1097,6 +1249,33 @@ class SparkplugBPublisher(DataPublisher):
             self._declared_tags.add(tag_name)
         return metrics
 
+    def _birth_metrics(self):
+        """
+        The metric set for a DBIRTH, covering every tag this publisher declared.
+
+        start() can seed from tag metadata alone, but a *reconnect* cannot: tags
+        created at runtime after the first birth live in `_declared_tags` and
+        never appear in metadata, and a DDATA naming a metric the newest DBIRTH
+        left out is not legal Sparkplug. So the birth set is the union of both,
+        or every runtime-created tag would silently stop being publishable the
+        first time the broker blinked.
+        """
+        metrics = self._seed_metrics()
+        declared = {metric.name for metric in metrics}
+
+        for tag_name in sorted(self._declared_tags - declared):
+            datatype = self._datatype_for(tag_name, 0)
+            metrics.append(
+                sparkplug.Metric(
+                    timestamp=int(time.time() * 1000),
+                    name=tag_name,
+                    datatype=datatype,
+                    value=self._coerce(0, datatype),
+                )
+            )
+
+        return metrics
+
     def _rebirth(self, metrics):
         """
         Register the device, declaring `metrics` in a DBIRTH.
@@ -1127,6 +1306,88 @@ class SparkplugBPublisher(DataPublisher):
             time.sleep(0.1)
         return False
 
+    def _teardown(self):
+        """Best-effort disposal of the current edge node before rebuilding one."""
+        edge_node = self.edge_node
+        if edge_node is None:
+            return
+
+        try:
+            edge_node.disconnect()
+        except Exception as e:
+            self.logger.debug(f"Sparkplug B teardown: {e}")
+        finally:
+            self.edge_node = None
+
+    def _connect(self) -> bool:
+        """
+        Build the edge node and bring the broker connection up.
+
+        Returns True once the link is live and the device has been born. Shared
+        by start() and the reconnect monitor, so a broker that comes back gets
+        the same NBIRTH/DBIRTH sequence a cold start does — consumers that saw
+        our NDEATH hold the old metric set as stale until a fresh birth arrives.
+        """
+        broker = self.config.get("broker", "localhost")
+        port = self.config.get("port", 1883)
+
+        # Dispose of any previous edge node first. paho runs a network thread
+        # per client and retries on its own, so rebuilding without this leaves
+        # an orphan thread competing for the same client id — the broker then
+        # evicts one session as the other connects, forever.
+        self._teardown()
+
+        #
+        # The Helm chart renders this publisher's settings into a ConfigMap,
+        # so a password in values.yaml would sit in plaintext in the cluster
+        # and in git. Reading EMBERBURN_SPARKPLUG_* first lets the chart
+        # inject them from a Kubernetes Secret via secretKeyRef — the same
+        # existingSecret/passwordKey convention the Ignition-Edge-Pod chart
+        # already uses — while the ConfigMap keeps only non-secret settings.
+        # Falls back to config so a bare local run, and credentials set
+        # through the runtime UI, keep working unchanged.
+        username = (
+            os.getenv("EMBERBURN_SPARKPLUG_USERNAME")
+            or self.config.get("username")
+            or None
+        )
+        password = (
+            os.getenv("EMBERBURN_SPARKPLUG_PASSWORD")
+            or self.config.get("password")
+            or None
+        )
+
+        client = sparkplug.Client(
+            client_id=f"{self.group_id}_{self.edge_node_id}",
+            username=username,
+            password=password,
+        )
+
+        metrics = self._birth_metrics()
+
+        # EdgeNode owns the NBIRTH/NDEATH certificates and the MQTT will.
+        self.edge_node = sparkplug.EdgeNode(
+            group_id=self.group_id,
+            edge_node_id=self.edge_node_id,
+            metrics=metrics,
+            client=client,
+        )
+
+        self.edge_node.connect(broker, port=port, keepalive=60)
+
+        if not self._await_connection():
+            self.connected = False
+            self.running = False
+            return False
+
+        # DBIRTH declares the metric set this device will publish.
+        self._rebirth(metrics)
+
+        self.connected = True
+        self.running = True
+        self._declared_count = len(metrics)
+        return True
+
     def start(self):
         """Start the Sparkplug B publisher."""
         if not self.enabled or not SPARKPLUG_AVAILABLE:
@@ -1136,75 +1397,39 @@ class SparkplugBPublisher(DataPublisher):
                 self.logger.info("Sparkplug B publisher is disabled")
             return
 
+        broker = self.config.get("broker", "localhost")
+        port = self.config.get("port", 1883)
+
         try:
-            broker = self.config.get("broker", "localhost")
-            port = self.config.get("port", 1883)
-            # Credentials prefer the environment over the config file.
-            #
-            # The Helm chart renders this publisher's settings into a ConfigMap,
-            # so a password in values.yaml would sit in plaintext in the cluster
-            # and in git. Reading EMBERBURN_SPARKPLUG_* first lets the chart
-            # inject them from a Kubernetes Secret via secretKeyRef — the same
-            # existingSecret/passwordKey convention the Ignition-Edge-Pod chart
-            # already uses — while the ConfigMap keeps only non-secret settings.
-            # Falls back to config so a bare local run, and credentials set
-            # through the runtime UI, keep working unchanged.
-            username = (
-                os.getenv("EMBERBURN_SPARKPLUG_USERNAME")
-                or self.config.get("username")
-                or None
-            )
-            password = (
-                os.getenv("EMBERBURN_SPARKPLUG_PASSWORD")
-                or self.config.get("password")
-                or None
-            )
-
-            client = sparkplug.Client(
-                client_id=f"{self.group_id}_{self.edge_node_id}",
-                username=username,
-                password=password,
-            )
-
-            metrics = self._seed_metrics()
-
-            # EdgeNode owns the NBIRTH/NDEATH certificates and the MQTT will.
-            self.edge_node = sparkplug.EdgeNode(
-                group_id=self.group_id,
-                edge_node_id=self.edge_node_id,
-                metrics=metrics,
-                client=client,
-            )
-
             self.logger.info(f"Connecting to Sparkplug B broker at {broker}:{port}")
-            self.edge_node.connect(broker, port=port, keepalive=60)
-
-            if not self._await_connection():
-                self.logger.error(
-                    f"Timed out connecting to Sparkplug B broker at {broker}:{port}"
+            if self._connect():
+                self.logger.info(
+                    f"Sparkplug B publisher started — {self.group_id}/{self.edge_node_id}/"
+                    f"{self.device_id}, {self._declared_count} metric(s) declared"
                 )
-                self.connected = False
-                self.running = False
-                return
-
-            # DBIRTH declares the metric set this device will publish.
-            self._rebirth(metrics)
-
-            self.connected = True
-            self.running = True
-            self.logger.info(
-                f"Sparkplug B publisher started — {self.group_id}/{self.edge_node_id}/"
-                f"{self.device_id}, {len(metrics)} metric(s) declared"
-            )
-
+            else:
+                self.logger.error(
+                    f"Timed out connecting to Sparkplug B broker at {broker}:{port} "
+                    "— will keep retrying with backoff"
+                )
         except Exception as e:
             self.logger.error(f"Failed to start Sparkplug B publisher: {e}")
             self.connected = False
             self.running = False
 
+        # The monitor starts whether or not that first connect worked. A broker
+        # that is not up yet when EmberBurn boots is the same problem as one
+        # that dies later, and neither should need a pod restart to recover —
+        # which is exactly what it needed before, because nothing ever retried.
+        self._start_monitor()
+
     def stop(self):
         """Stop the Sparkplug B publisher, emitting NDEATH."""
+        self._stop_monitor()
+
         if not self.edge_node or not self.running:
+            self.connected = False
+            self.running = False
             return
 
         try:
@@ -1216,6 +1441,135 @@ class SparkplugBPublisher(DataPublisher):
             self.connected = False
             self.running = False
 
+    # How often the monitor looks at the link. This is a cheap flag read, not a
+    # reconnect attempt — the reconnects themselves are paced by the backoff.
+    _MONITOR_TICK = 1.0
+
+    def _start_monitor(self):
+        """Start the connection monitor, unless it is already running."""
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            return
+
+        self._monitor_stop.clear()
+        self._monitor_thread = threading.Thread(
+            target=self._connection_monitor,
+            name="sparkplug-connection-monitor",
+            daemon=True,
+        )
+        self._monitor_thread.start()
+
+    def _stop_monitor(self):
+        """Signal the monitor to exit and wait briefly for it."""
+        self._monitor_stop.set()
+
+        thread = self._monitor_thread
+        if thread and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=5.0)
+
+        self._monitor_thread = None
+
+    def _broker_alive(self) -> bool:
+        """
+        Whether the MQTT socket is genuinely up, as against what we last believed.
+
+        Deliberately NOT `edge_node._connected`. pysparkplug sets that in its
+        on_connect callback and clears it only when *we* call disconnect(), so a
+        broker that vanishes leaves it True forever — which is the whole bug:
+        publish() trusted our own `connected` flag, that flag was never
+        contradicted, and EmberBurn went on addressing a broker that had been
+        gone for half an hour. paho's is_connected() tracks the socket itself.
+
+        Falls back to pysparkplug's flag if those internals ever move, because
+        the safe failure here is to keep publishing, not to refuse to.
+        """
+        edge_node = self.edge_node
+        if edge_node is None:
+            return False
+
+        try:
+            return bool(edge_node._client._client.is_connected())
+        except AttributeError:
+            return bool(getattr(edge_node, '_connected', False))
+
+    def _connection_monitor(self):
+        """
+        Watch the broker link, pause publishing when it drops, bring it back.
+
+        Logs on transitions only — one line when the link goes, one when it
+        returns. Everything in between is counted rather than printed.
+        """
+        while not self._monitor_stop.is_set():
+            try:
+                if self.connected:
+                    if not self._broker_alive():
+                        self._suspend("broker connection lost")
+                elif self._backoff.ready():
+                    self._attempt_reconnect()
+            except Exception as e:
+                # The monitor must outlive anything thrown inside it; a dead
+                # monitor means a gateway that never reconnects again.
+                self.logger.debug(f"Sparkplug B connection monitor error: {e}")
+
+            self._monitor_stop.wait(self._MONITOR_TICK)
+
+    def _suspend(self, reason: str):
+        """Mark the link down and stop publishing until the monitor restores it."""
+        if not self.connected:
+            return
+
+        self.connected = False
+        self.running = False
+        self._backoff.reset()
+        self._dropped_while_down = 0
+        self.logger.warning(
+            f"Sparkplug B {reason} — pausing publishes and reconnecting with "
+            f"backoff (up to {self._backoff.maximum:.0f}s between attempts)"
+        )
+
+    def _attempt_reconnect(self):
+        """One paced reconnect attempt. Quiet unless the state actually changes."""
+        try:
+            if self._broker_alive():
+                # The client healed itself underneath us. It still needs a
+                # birth: the broker delivered our NDEATH, so consumers are
+                # holding the old metric set as stale until a DBIRTH lands.
+                self._rebirth(self._birth_metrics())
+                self._resume("connection restored")
+                return
+
+            if self._connect():
+                self._resume("reconnected")
+                return
+
+            reason = "connection timed out"
+        except Exception as e:
+            reason = str(e)
+
+        wait = self._backoff.fail()
+
+        if self._backoff.failures == 1:
+            self.logger.error(f"Sparkplug B reconnect failed: {reason}")
+        else:
+            self.logger.debug(
+                f"Sparkplug B reconnect attempt {self._backoff.failures} failed: "
+                f"{reason} (next in {wait:.0f}s)"
+            )
+
+    def _resume(self, how: str):
+        """Mark the link healthy and report once what the outage cost."""
+        attempts = self._backoff.failures
+        dropped = self._dropped_while_down
+
+        self.connected = True
+        self.running = True
+        self._backoff.reset()
+        self._dropped_while_down = 0
+
+        self.logger.info(
+            f"Sparkplug B {how} after {attempts} failed attempt(s) — "
+            f"{dropped} publish(es) dropped while down"
+        )
+
     def publish(self, tag_name: str, value: Any, timestamp: Optional[float] = None):
         """
         Publish a tag value as a Sparkplug B DDATA message.
@@ -1225,7 +1579,15 @@ class SparkplugBPublisher(DataPublisher):
             value: Tag value
             timestamp: Optional timestamp
         """
-        if not self.enabled or not self.connected or not SPARKPLUG_AVAILABLE:
+        if not self.enabled or not SPARKPLUG_AVAILABLE:
+            return
+
+        if not self.connected:
+            # The broker is down and the monitor owns getting it back. Returning
+            # here is the whole of the log-flood fix: this used to fall through
+            # to update_device(), which threw and logged once per tag, per scan
+            # — 35 lines a second for as long as the broker stayed dead.
+            self._dropped_while_down += 1
             return
 
         try:
@@ -1249,7 +1611,17 @@ class SparkplugBPublisher(DataPublisher):
             self.logger.debug(f"Published Sparkplug B DDATA: {tag_name} = {value}")
 
         except Exception as e:
-            self.logger.error(f"Error publishing to Sparkplug B: {e}")
+            # A publish can fail because the broker just went away, or because
+            # this one tag is bad. Tell them apart: if the link is gone, suspend
+            # here rather than waiting for the monitor's next tick, so the rest
+            # of this scan returns early instead of logging the same broker
+            # death once for every remaining tag.
+            if not self._broker_alive():
+                self._suspend(f"publish failed and the broker is gone ({e})")
+                self._dropped_while_down += 1
+            else:
+                self.logger.error(f"Error publishing to Sparkplug B: {e}")
+
 
 class KafkaPublisher(DataPublisher):
     """Apache Kafka Publisher for enterprise streaming."""
@@ -2713,6 +3085,10 @@ class OPCUAClientPublisher(DataPublisher):
         self.clients = {}  # server_name -> {"client": OPCUAClient, "connected": bool, "nodes": {}}
         self.running = False
         self.reconnect_thread = None
+        # Per-server reconnect pacing. `reconnect_interval` stays the first
+        # wait, so a configured value keeps meaning what it always did; the
+        # backoff only adds a ceiling for a server that is not coming back.
+        self._backoffs = {}
         
         self.logger.info(f"OPC UA Client publisher initialized with {len(self.servers_config)} server(s)")
     
@@ -2752,16 +3128,33 @@ class OPCUAClientPublisher(DataPublisher):
         self.clients.clear()
         self.logger.info("OPC UA Client publisher stopped")
     
-    def _connect_to_server(self, server_config: Dict[str, Any]):
+    def _backoff_for(self, server_name: str) -> ConnectionBackoff:
+        """Reconnect pacing for one server, created on first use."""
+        backoff = self._backoffs.get(server_name)
+        if backoff is None:
+            backoff = ConnectionBackoff(
+                initial=self.reconnect_interval,
+                maximum=self.config.get("reconnect_max_seconds", 60.0),
+            )
+            self._backoffs[server_name] = backoff
+        return backoff
+
+    def _connect_to_server(self, server_config: Dict[str, Any]) -> bool:
         """
         Connect to a single OPC UA server.
-        
+
+        Returns True on success. A failure is logged once per outage rather than
+        once per attempt: this is driven by the reconnect loop, which used to
+        log an info line and an error line on every pass, so a server that was
+        never coming back cost two lines every five seconds indefinitely.
+
         Args:
             server_config: Server configuration dictionary
         """
         server_name = server_config.get("name", server_config["url"])
         url = server_config["url"]
-        
+        backoff = self._backoff_for(server_name)
+
         try:
             client = OPCUAClient(url)
             
@@ -2783,26 +3176,59 @@ class OPCUAClientPublisher(DataPublisher):
                 "objects": client.get_objects_node()
             }
             
-            self.logger.info(f"Connected to OPC UA server: {server_name} ({url})")
-            
+            if backoff.failures:
+                self.logger.info(
+                    f"Reconnected to OPC UA server: {server_name} ({url}) after "
+                    f"{backoff.failures} failed attempt(s)"
+                )
+            else:
+                self.logger.info(f"Connected to OPC UA server: {server_name} ({url})")
+
+            backoff.reset()
+            return True
+
         except Exception as e:
-            self.logger.error(f"Failed to connect to {server_name}: {e}")
+            wait = backoff.fail()
+
+            if backoff.failures == 1:
+                self.logger.error(f"Failed to connect to {server_name}: {e}")
+            else:
+                self.logger.debug(
+                    f"OPC UA reconnect attempt {backoff.failures} to {server_name} "
+                    f"failed: {e} (next in {wait:.0f}s)"
+                )
+
             self.clients[server_name] = {
                 "client": None,
                 "connected": False,
                 "config": server_config,
                 "nodes": {}
             }
-    
+            return False
+
+    # How often the loop looks for work. Whether any given server is actually
+    # retried on a pass is decided by its own backoff, not by this tick.
+    _RECONNECT_TICK = 1.0
+
     def _reconnect_loop(self):
-        """Background thread to reconnect to disconnected servers."""
+        """
+        Background thread to reconnect to disconnected servers.
+
+        Attempts are paced per server by ConnectionBackoff. This used to retry
+        every disconnected server on a flat five-second interval forever, which
+        is the same defect that made a dead Sparkplug broker so expensive: a
+        constant retry rate against something that is not coming back.
+        """
         while self.running:
-            time.sleep(self.reconnect_interval)
-            
+            time.sleep(self._RECONNECT_TICK)
+
             for server_name, client_info in list(self.clients.items()):
-                if not client_info["connected"]:
-                    self.logger.info(f"Attempting to reconnect to {server_name}...")
-                    self._connect_to_server(client_info["config"])
+                if client_info["connected"]:
+                    continue
+                if not self._backoff_for(server_name).ready():
+                    continue
+
+                self._connect_to_server(client_info["config"])
     
     def _get_or_create_node(self, client_info: Dict[str, Any], tag_name: str):
         """
@@ -4023,6 +4449,10 @@ class PublisherManager:
         # Distinct tag names seen by publish_to_all, used for the
         # emberburn_tags_total gauge.
         self._published_tags = set()
+        # Publisher errors are per-tag, per-scan, so an endpoint that stays
+        # broken repeats the same line thousands of times a minute. Collapse
+        # them to one line per state change; Prometheus still counts every one.
+        self._error_throttle = ErrorThrottle(self.logger)
 
     def initialize_publishers(self):
         """Initialize all configured publishers."""
@@ -4190,6 +4620,10 @@ class PublisherManager:
                 publisher.publish(tag_name, value, timestamp)
                 publish_elapsed = time.monotonic() - publish_started
 
+                # A publish that worked ends any error run this publisher was
+                # in, and logs a single recovery line if it had been failing.
+                self._error_throttle.clear(publisher.__class__.__name__)
+
                 # Update Prometheus metrics for successful publish
                 if isinstance(publisher, PrometheusPublisher):
                     continue  # Don't record metrics publisher itself
@@ -4202,9 +4636,13 @@ class PublisherManager:
 
 
             except Exception as e:
-                self.logger.error(f"Error publishing to {publisher.__class__.__name__}: {e}")
-                
-                # Record error in Prometheus
+                self._error_throttle.record(
+                    publisher.__class__.__name__,
+                    f"Error publishing to {publisher.__class__.__name__}: {e}",
+                )
+
+                # Record error in Prometheus. Deliberately outside the throttle:
+                # the logs get quieter during an outage, the metrics do not.
                 prometheus_pub = self._get_prometheus_publisher()
                 if prometheus_pub:
                     publisher_name = publisher.__class__.__name__.replace('Publisher', '')

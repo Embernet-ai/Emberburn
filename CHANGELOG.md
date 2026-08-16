@@ -5,6 +5,65 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.20] - 2026-08-16: A Dead Broker Stops Being A Log Flood
+
+### Fixed
+
+- **63,720 publish errors in 30 minutes — about 35 a second — against a broker
+  that had gone away.** `SparkplugBPublisher.connected` was set `True` by
+  `start()` and cleared only by `stop()`. Nothing ever contradicted it, so when
+  AnvilMQ went away the guard at the top of `publish()` still passed, every
+  publish fell through to `update_device()`, and every one of them threw and
+  logged its own line: one per tag, per scan, for as long as the broker stayed
+  dead. Ninety tags on a two-second scan is exactly the observed rate.
+
+  The flag could not be fixed by clearing it in the right place, because there
+  was no right place — `pysparkplug` sets `EdgeNode._connected` in its
+  on_connect callback and clears it only when *we* call `disconnect()`, so it
+  reports intent, not the socket. Liveness now comes from paho's
+  `is_connected()`, which tracks the connection itself. If those internals ever
+  move, it falls back to pysparkplug's flag: the safe failure here is to keep
+  publishing, not to refuse to.
+
+- **Nothing ever reconnected.** There was no path back to `start()` from a
+  running publisher, so a broker blip meant a dead gateway until someone
+  restarted the pod — and the pod looked healthy the whole time. A monitor
+  thread now watches the link, pauses publishing when it drops, and reconnects
+  on an exponential backoff (1s, doubling, capped at 60s, with jitter so a fleet
+  that lost the same broker does not all pile back on at the same instant). A
+  broker that is not up yet at boot is treated the same as one that dies later;
+  neither needs a restart now.
+
+  Recovery re-issues the DBIRTH, and the birth set is the union of tag metadata
+  and every tag declared at runtime. Seeding from metadata alone would have
+  silently dropped Tag-Generator tags from the metric set the first time the
+  broker blinked, and a DDATA naming a metric the newest DBIRTH left out is not
+  legal Sparkplug.
+
+- **The same amplifier existed for every publisher.** `publish_to_all()` logged
+  one line per exception, per tag, per scan, so any publisher developing this
+  disease produced the same flood. Errors now collapse to one line per state
+  change: first failure, a periodic count while it persists so a long outage
+  stays visible, and one line when it clears. A *changed* message logs
+  immediately — "connection refused" becoming "authentication failed" is new
+  information. Suppression is log-only; Prometheus still counts every single
+  error, so the metrics are unchanged.
+
+- **`OPCUAClientPublisher` retried on a flat five-second interval forever**,
+  logging an info line and an error line every pass. Same defect, same fix —
+  per-server backoff, `reconnect_interval` kept as the first wait so a
+  configured value still means what it did, with a ceiling added.
+
+While the broker is down, publishing costs nothing: 1,800 calls to a dead
+broker return in under a millisecond total and produce zero log lines, against
+1,800 lines before. Verified in `test_backoff.py`, which runs a real in-process
+broker and kills it — the bug was a false belief about a socket, so mocking the
+socket would have mocked away the thing under test.
+
+No chart changes. The two new knobs (`reconnect_initial_seconds`,
+`reconnect_max_seconds`) are optional and default sane, so nothing needs to be
+rendered into the ConfigMap for this to work.
+
 ## [4.1.19] - 2026-08-13: Unpin The Web UI From The Dashboard's Path Proxy
 
 ### Fixed

@@ -3,6 +3,121 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.1.19 — 2026-08-13
+
+### The Launch Button Opened An Empty Frame
+
+An `after_request` hook rewrote every absolute `href`, `src` and `fetch()` in our
+HTML to point at the dashboard's `/api/proxy`, gated on `X-Forwarded-For`. That
+header is set on both of the dashboard's routes, so the gate could not tell them
+apart — and on the primary route, where we are served at the root of our own
+hostname, absolute paths already resolve. Rewriting them there aimed every asset
+and every API call at the dashboard's origin for an app that is not served
+there. The frame loaded and rendered nothing.
+
+- The hook is gone. Served at our own root, there is nothing to rewrite
+- `static/js/api.js` was already mode-aware — it rebuilds the prefix from
+  `?target=` when present and uses same-origin paths when not — so the fallback
+  route still works
+- The dashboard's own alignment doc names this hook as the worse of its two
+  failure modes, because it pins an app to the fallback route permanently. This
+  closes it out
+
+## v4.1.18 — 2026-08-13
+
+### `args` Without `command` Never Starts
+
+Chart-only release; the 4.1.17 image is unchanged.
+
+4.1.15 added `args` to point the app at its mounted config. The image declares
+`CMD` with no `ENTRYPOINT`, and Kubernetes `args` overrides `CMD` while leaving
+`ENTRYPOINT` as the program — so with no ENTRYPOINT, the args became the whole
+command line and the kubelet tried to exec `-c`. Straight into CrashLoopBackOff.
+
+- Template now sets `command: ["python", "opcua_server.py"]` alongside `args`
+
+## v4.1.17 — 2026-08-13
+
+### Stable OPC UA Node IDs
+
+A tag's NodeId depended on the order tags happened to be created in.
+`add_variable` asks the server for the next free *numeric* identifier, so tags
+came out `ns=2;i=1`, `ns=2;i=2` and so on. A client bound to `ns=2;i=7` keeps
+that binding, and the next start — one tag added, one removed, the store
+reordered — quietly pointed it somewhere else. Nothing errors. The screen just
+shows the wrong number, in the right units, for a tag that looks perfectly
+plausible.
+
+- NodeIds are strings derived from the tag name now
+  (`ns=2;s=PLC_PRG/Baja_Temp`): stable across restarts, readable in a browse
+  tree, and the thing you would actually write down as an OPC item path
+
+**Upgrade note:** any client bound to the old numeric ids has to be re-pointed.
+Browse paths did not change, so anything that browses rather than hardcoding ids
+is unaffected.
+
+## v4.1.16 — 2026-08-13
+
+### Computed Tags Are Just Tags, Plus Energy And Clocks
+
+Computed tags were the last thing that still needed chart values. But a computed
+tag has a name, a type and a value on the wire — it is a tag. So it is authored
+like one.
+
+- Declare `simulation_type: computed` with an `expression` and `dependencies` in
+  the tag definition and it is created, persisted and deleted through the same
+  API as everything else. Deleting one now actually stops it computing instead
+  of leaving it running forever
+- **`accumulate`** integrates another tag over time, for energy counters. kWh is
+  the integral of kW, not a counter that ticks: `increment` climbs at a fixed
+  rate regardless of load, so a site pulling 20 kW and one pulling 140 kW would
+  total identically, sitting next to the power reading that disagrees with them.
+  The total is kept at full precision in state — accumulating from the rounded
+  display value lost exactly 10% over a simulated hour
+- **`clock`** exposes hour/minute/second of local time. HMIs show the plant
+  clock from tags, and simulating those with `random` puts a number on the
+  screen that is not a time
+
+## v4.1.15 — 2026-08-13
+
+### Tags Belong In The App, Not In The Chart
+
+The headline change is that `config.tags` defaults to empty and should stay
+that way — tags are created in the running gateway and persisted to its data
+volume, so they survive restarts, upgrades and rescheduling. Two things had to
+be true first, and neither was.
+
+- **The chart's config was never read.** The chart mounted `tags.json` and
+  `publishers.json` as two ConfigMaps; the app takes a single `-c` file with
+  `tags` and `publishers` as sections of it. Nothing emitted `command`/`args`,
+  so the image `CMD` won and the pod ran its built-in demo config. Verified on
+  the live Fragua deployment: both files mounted, neither ever opened. Every
+  value anyone had set in `config.tags` or `config.publishers` since the chart
+  existed was ignored, silently, while the pod reported healthy
+- **A tag created through the API never simulated.** `create_tag` went through
+  `write_callback`, which registers a tag as `{"simulate": False}` and throws
+  the rest away. So a tag made in the UI sat at its initial value forever and
+  the only way to get a simulating one was to bake it into the chart. Added
+  `define_tag` / `define_callback`, which registers the type, the full
+  simulation config and the metadata
+- **Nothing survived a restart.** Runtime definitions are written to
+  `EMBERBURN_TAG_STORE` (default `/app/data/tags.json`) via temp file and atomic
+  replace, then layered over the config file at startup. A corrupt store is
+  logged and skipped rather than taking startup down with it. Deletes persist
+  too, or the tag walks back in on the next boot
+- **`config.publishers.sparkplug` → `sparkplug_b`.** The app reads
+  `sparkplug_b`, as does every config file in the image. The chart had been
+  writing a key nothing looked at, so `enabled: true` was a no-op
+- **Tags with `simulate: false` were never published.** The update loop skipped
+  them before reaching the publish call, so setpoints, mode strings and anything
+  the transformation publisher wrote were declared in the DBIRTH and then never
+  sent again
+
+**If you are automating this:** EmberBurn refuses anonymous writes. Without
+`EMBERBURN_API_KEY` it generates an ephemeral per-pod token that only the web UI
+receives, so a seeding script needs a configured key (`security.apiKey` or
+`security.existingSecret`).
+
 ## v4.1.14 — 2026-08-10
 
 ### The groupId Derivation, Reverted
