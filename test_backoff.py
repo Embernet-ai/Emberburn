@@ -277,6 +277,98 @@ if pub.connected:
 pub.stop()
 stop_broker()
 
+
+# ── a paused publisher must not read as a healthy one ─────────────────────
+# 4.1.20 quieted the logs and blinded the metrics in the same change: a paused
+# publish returns instead of raising, so publish_to_all counted every dropped
+# tag as a delivered message and logged a "recovered" line on the first drop.
+# A dead broker showed up as ~45 healthy messages a second.
+class FakePrometheus(publishers.PrometheusPublisher):
+    def __init__(self):
+        self.enabled = True
+        self.messages = 0
+        self.errors = 0
+        self.unavailable_reason = None
+
+    def publish(self, tag_name, value, timestamp=None):
+        pass
+
+    def record_publisher_message(self, name):
+        self.messages += 1
+
+    def record_publish_duration(self, name, elapsed):
+        pass
+
+    def record_publisher_error(self, name):
+        self.errors += 1
+
+    def update_system_metrics(self, tags_count=0):
+        pass
+
+
+class PausablePublisher(publishers.DataPublisher):
+    """Stands in for Sparkplug: drops silently while unavailable."""
+
+    def __init__(self):
+        super().__init__({"enabled": True})
+        self.enabled = True
+        self.delivered = 0
+
+    def start(self): pass
+
+    def stop(self): pass
+
+    def publish(self, tag_name, value, timestamp=None):
+        if self.unavailable_reason:
+            return
+        self.delivered += 1
+
+
+mgr_log = logging.getLogger("manager-metrics-test")
+mgr_log.setLevel(logging.DEBUG)
+mgr_log.propagate = False
+mgr_counter = CountingHandler()
+mgr_log.addHandler(mgr_counter)
+
+mgr = publishers.PublisherManager({}, mgr_log)
+prom = FakePrometheus()
+paused = PausablePublisher()
+mgr.publishers = [paused, prom]
+
+for i, name in enumerate(TAGS):
+    mgr.publish_to_all(name, float(i))
+check("healthy publisher counts as delivered",
+      prom.messages == len(TAGS) and prom.errors == 0,
+      f"messages={prom.messages} errors={prom.errors}")
+
+prom.messages = prom.errors = 0
+paused.delivered = 0
+mgr_counter.reset()
+paused.unavailable_reason = "broker connection lost"
+
+for i, name in enumerate(TAGS):
+    mgr.publish_to_all(name, float(i))
+
+check("a paused publisher records no delivered messages",
+      prom.messages == 0, f"{prom.messages} counted as delivered")
+check("a paused publisher records every drop as an error",
+      prom.errors == len(TAGS), f"{prom.errors} errors for {len(TAGS)} drops")
+check("nothing was actually delivered", paused.delivered == 0,
+      f"{paused.delivered} delivered")
+check("a drop does not log a false recovery",
+      not [m for m in mgr_counter.messages(logging.INFO) if "recovered" in m.lower()],
+      str(mgr_counter.messages(logging.INFO)))
+
+# ...and recovery still reports once, through the same path.
+paused.unavailable_reason = None
+prom.messages = prom.errors = 0
+mgr._error_throttle.record("PausablePublisher", "Error publishing to PausablePublisher: boom")
+mgr_counter.reset()
+mgr.publish_to_all(TAGS[0], 1.0)
+check("recovery is reported once the publisher delivers again",
+      len([m for m in mgr_counter.messages(logging.INFO) if "recovered" in m.lower()]) == 1,
+      str(mgr_counter.messages(logging.INFO)))
+
 # ── report ────────────────────────────────────────────────────────────────
 print()
 for name, ok, detail in results:

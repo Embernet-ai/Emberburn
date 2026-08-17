@@ -5,6 +5,38 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.21] - 2026-08-17: A Paused Publisher Is Not A Healthy One
+
+### Fixed
+
+- **4.1.20 quieted the logs and blinded the metrics in the same change.** The
+  flood fix works by having `publish()` return early while the broker is down
+  instead of throwing per tag. But `publish_to_all()` decides what happened by
+  whether `publish()` raised — and a paused publish returns, exactly like a
+  successful one. So every dropped tag was counted as a **delivered message**:
+  a dead broker read as roughly 45 healthy messages a second on the dashboard,
+  which is precisely the question `emberburn_publisher_errors_total` exists to
+  answer. The first drop also fired the throttle's `clear()` and logged a
+  **"recovered"** line, immediately after the line saying the link had dropped.
+
+  4.1.20's changelog claimed "Prometheus still counts every error, so the
+  metrics are unchanged." That was true of the exception path and false of the
+  path the fix actually introduced. Correcting it here rather than quietly.
+
+- Publishers now carry `unavailable_reason` on the base class: `None` while
+  delivering, a string while enabled but unable to. `publish_to_all()` reads it
+  to tell a drop apart from a delivery, records the drop as an error, and
+  leaves the error run open so no false recovery is logged. Suppression stays
+  log-only, which is what was meant the first time.
+
+- **`OPCUAClientPublisher` had the same hole.** Its `publish()` skips servers
+  that are down and returns normally, so with every configured server
+  unreachable it dropped every value while looking like a clean publish. It now
+  reports `unavailable_reason` when no server is reachable.
+
+The regression test asserts on the counters, not the log lines — the metric was
+the thing that broke, and a log-only test is what let this ship.
+
 ## [4.1.20] - 2026-08-16: A Dead Broker Stops Being A Log Flood
 
 ### Fixed

@@ -260,6 +260,17 @@ class DataPublisher(ABC):
         # something else. GraphQL and Sparkplug B were both missed that way.
         self.tag_metadata: Dict[str, Any] = {}
 
+        # Set by a publisher that is enabled but currently cannot deliver — a
+        # Sparkplug link waiting on a dead broker, say. None means "delivering".
+        #
+        # publish_to_all needs this to tell a drop apart from a delivery, and it
+        # cannot infer it: a paused publish returns instead of raising, so from
+        # there it is indistinguishable from a successful one. 4.1.20 got that
+        # wrong in both directions — every dropped tag was counted as a
+        # published message, so a dead broker read as ~45 healthy messages a
+        # second, and the first drop logged a "recovered" line.
+        self.unavailable_reason: Optional[str] = None
+
     @abstractmethod
     def start(self):
         """Start the publisher."""
@@ -1519,6 +1530,7 @@ class SparkplugBPublisher(DataPublisher):
 
         self.connected = False
         self.running = False
+        self.unavailable_reason = reason
         self._backoff.reset()
         self._dropped_while_down = 0
         self.logger.warning(
@@ -1562,6 +1574,7 @@ class SparkplugBPublisher(DataPublisher):
 
         self.connected = True
         self.running = True
+        self.unavailable_reason = None
         self._backoff.reset()
         self._dropped_while_down = 0
 
@@ -3128,6 +3141,26 @@ class OPCUAClientPublisher(DataPublisher):
         self.clients.clear()
         self.logger.info("OPC UA Client publisher stopped")
     
+    def _refresh_availability(self):
+        """
+        Recompute whether this publisher can deliver anything at all.
+
+        publish() skips servers that are down and returns normally, so with
+        every server down it drops every value while looking exactly like a
+        successful publish from the manager's side. Same trap as Sparkplug.
+        """
+        if not self.clients:
+            self.unavailable_reason = None
+            return
+
+        live = [name for name, info in self.clients.items() if info["connected"]]
+        if live:
+            self.unavailable_reason = None
+        else:
+            self.unavailable_reason = (
+                f"no OPC UA server reachable ({len(self.clients)} configured)"
+            )
+
     def _backoff_for(self, server_name: str) -> ConnectionBackoff:
         """Reconnect pacing for one server, created on first use."""
         backoff = self._backoffs.get(server_name)
@@ -3185,6 +3218,7 @@ class OPCUAClientPublisher(DataPublisher):
                 self.logger.info(f"Connected to OPC UA server: {server_name} ({url})")
 
             backoff.reset()
+            self._refresh_availability()
             return True
 
         except Exception as e:
@@ -3204,6 +3238,7 @@ class OPCUAClientPublisher(DataPublisher):
                 "config": server_config,
                 "nodes": {}
             }
+            self._refresh_availability()
             return False
 
     # How often the loop looks for work. Whether any given server is actually
@@ -3339,6 +3374,7 @@ class OPCUAClientPublisher(DataPublisher):
                 self.logger.error(f"Error writing {tag_name} to {server_name}: {e}")
                 # Mark as disconnected on error
                 client_info["connected"] = False
+                self._refresh_availability()
 
 
 class PrometheusPublisher(DataPublisher):
@@ -4619,6 +4655,20 @@ class PublisherManager:
                 publish_started = time.monotonic()
                 publisher.publish(tag_name, value, timestamp)
                 publish_elapsed = time.monotonic() - publish_started
+
+                # Returning without raising is not the same as delivering. A
+                # publisher that is enabled but paused drops the value on the
+                # floor and says nothing, so it has to be counted as an error
+                # and its error run left open — otherwise a dead broker reads
+                # as a perfectly healthy one on the dashboard, which is the
+                # exact question emberburn_publisher_errors_total exists to
+                # answer, and the first drop would log a "recovered" line.
+                if publisher.enabled and publisher.unavailable_reason:
+                    prometheus_pub = self._get_prometheus_publisher()
+                    if prometheus_pub and not isinstance(publisher, PrometheusPublisher):
+                        publisher_name = publisher.__class__.__name__.replace('Publisher', '')
+                        prometheus_pub.record_publisher_error(publisher_name)
+                    continue
 
                 # A publish that worked ends any error run this publisher was
                 # in, and logs a single recovery line if it had been failing.

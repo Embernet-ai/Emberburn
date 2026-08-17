@@ -3,6 +3,42 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.1.20 — 2026-08-16
+
+### A Dead Broker Stops Being A Log Flood
+
+63,720 publish errors in 30 minutes, about 35 a second, against an AnvilMQ
+broker that had gone away. Retried flat out, never backed off, never
+reconnected. All three were the same root cause.
+
+`SparkplugBPublisher.connected` was set `True` by `start()` and cleared only by
+`stop()`, so when the broker died the guard at the top of `publish()` still
+passed and every tag fell through to a call that threw and logged its own line.
+Ninety tags on a two-second scan is exactly the observed rate. The obvious place
+to look instead — pysparkplug's `EdgeNode._connected` — is no better: it records
+intent, not the socket, and stays `True` forever too.
+
+- Liveness reads paho's `is_connected()` now, which tracks the connection, with
+  a fallback to pysparkplug's flag if those internals move
+- A monitor thread pauses publishing when the link drops, logs one line for the
+  drop and one for the recovery, and retries at 1s doubling to 60s with jitter.
+  A broker that is not up yet at boot is treated the same as one that dies
+  later — neither needs a pod restart, which previously was the only way back
+- Recovery re-births the union of tag metadata and every runtime-declared tag.
+  Seeding from metadata alone would silently drop Tag-Generator tags, and a
+  DDATA naming a metric the newest DBIRTH left out is not legal Sparkplug
+- `publish_to_all()` collapses repeated errors to one line per state change, so
+  any publisher catching this disease cannot flood either
+- `OPCUAClientPublisher` had the same flat-retry defect — five seconds forever,
+  two log lines a pass — and got the same backoff
+
+While the broker is down, publishing costs nothing: 1,800 calls return in under
+a millisecond total and produce zero log lines.
+
+**Read 4.1.21 before deploying this one.** 4.1.20 made the drop path silent to
+Prometheus as well as to the log, so a dead broker reported itself as healthy.
+Fixed immediately after; go straight to 4.1.21.
+
 ## v4.1.19 — 2026-08-13
 
 ### The Launch Button Opened An Empty Frame
