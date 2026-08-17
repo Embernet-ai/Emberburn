@@ -5,6 +5,56 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.20] - 2026-08-17: One Number To Deploy
+
+Consolidation release. **Deploy this one.** No code change from 4.1.21 — the
+version exists so there is a single answer to "what should be running," instead
+of a 4.1.x tail where some versions are fine, one is actively misleading, and
+one was never packaged at all.
+
+### Why the jump
+
+The dead-broker work shipped across three releases in two days, and the middle
+one is a trap:
+
+| Version | State | Notes |
+|---|---|---|
+| 4.1.19 | Superseded | Floods the log on a dead broker. This is what was in the field. |
+| 4.1.20 | **Do not deploy** | Fixes the flood, but reports a dead broker as healthy to Prometheus. |
+| 4.1.21 | Good | Fixes 4.1.20. Functionally identical to this release. |
+| 4.4.20 | **Deploy this** | Same code as 4.1.21, one number. |
+
+4.1.16 also has an image and a tag but was never packaged into the chart index,
+so it is not installable from the catalog. That gap stays historical rather than
+being back-filled — this release supersedes it.
+
+### What you get, relative to 4.1.19
+
+- **A dead broker no longer floods the log.** 63,720 publish errors in 30
+  minutes became 2 lines: one when the link drops, one when it returns. See
+  4.1.20 for the mechanism — `SparkplugBPublisher.connected` was set once and
+  never contradicted, and pysparkplug's own `_connected` records intent rather
+  than the socket, so neither could be trusted for liveness
+- **It reconnects on its own.** There was previously no path from a running
+  publisher back to `start()`, so a broker blip meant a dead gateway until
+  someone restarted the pod — and it looked healthy throughout. Retries are
+  paced 1s doubling to 60s with jitter
+- **A paused publisher reads as unhealthy, not healthy.** The correction from
+  4.1.21: dropping a value and delivering one are now distinguishable to
+  `publish_to_all()`, so `emberburn_publisher_errors_total` still answers the
+  question it exists to answer
+- **Nothing retries flat out any more.** `OPCUAClientPublisher` had the same
+  defect on a five-second loop and got the same backoff
+
+### Verification
+
+122 checks across four suites: `test_backoff.py` 29, `test_sparkplug.py` 15,
+`test_chunk_limits.py` 12, `test_simulation.py` 66.
+
+No chart behaviour changed anywhere in this arc. `reconnect_initial_seconds`
+and `reconnect_max_seconds` are optional with sane defaults, so nothing new is
+rendered into the ConfigMap.
+
 ## [4.1.21] - 2026-08-17: A Paused Publisher Is Not A Healthy One
 
 ### Fixed

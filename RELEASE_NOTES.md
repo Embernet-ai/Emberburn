@@ -3,6 +3,34 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.1.21 — 2026-08-17
+
+### A Paused Publisher Is Not A Healthy One
+
+**If you are on 4.1.20, take this.** 4.1.20 fixed the dead-broker log flood and
+blinded the metrics in the same change.
+
+The flood fix works by having `publish()` return early while the broker is down
+instead of throwing once per tag. But `publish_to_all()` decides what happened
+by whether `publish()` raised, and a paused publish returns — exactly like a
+successful one. Every dropped tag was counted as a delivered message, so a dead
+broker read as roughly 45 healthy messages a second, which is the precise
+question `emberburn_publisher_errors_total` exists to answer. The first drop
+also logged a "recovered" line directly under the line saying the link dropped.
+
+- Publishers carry `unavailable_reason` on the base class: `None` while
+  delivering, a string while enabled but unable to. `publish_to_all()` reads it
+  to tell a drop from a delivery, counts the drop as an error, and leaves the
+  error run open so nothing logs a false recovery
+- `OPCUAClientPublisher` had the same hole — it skips servers that are down and
+  returns normally, so with everything unreachable it dropped every value while
+  looking like a clean publish
+- 4.1.20's changelog claimed the metrics were unchanged. True of the exception
+  path, false of the path the fix introduced; corrected rather than edited away
+
+The regression test asserts on the counters, not the log lines. The metric was
+what broke, and a log-only test is what let it ship.
+
 ## v4.1.20 — 2026-08-16
 
 ### A Dead Broker Stops Being A Log Flood
