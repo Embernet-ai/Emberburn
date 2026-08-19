@@ -3,6 +3,18 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.20 — 2026-08-17
+
+Consolidation release, and the one to deploy. No code change from 4.1.21; the
+version exists so there is a single answer to "what should be running" instead of
+a 4.1.x tail where 4.1.19 floods the log on a dead broker, 4.1.20 fixes it, and
+4.1.21 adds paused-publisher health.
+
+Chart and image both move to 4.4.20 together, so `helm upgrade` and the running
+container report the same number.
+
+---
+
 ## v4.1.21 — 2026-08-17
 
 ### A Paused Publisher Is Not A Healthy One

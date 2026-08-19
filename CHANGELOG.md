@@ -5,6 +5,44 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.21] - 2026-08-19: The Web UI Renders Again When The Dashboard Embeds It
+
+### Fixed
+
+- **Iframed through the dashboard, the web UI painted as unstyled HTML.** Our
+  `<link rel="stylesheet" href="/static/web/css/style.css">` and
+  `<script src="/static/...">` are root-absolute. On the dashboard's path-proxy
+  route we are served under `dashboard.embernet.ai`, so those resolve against the
+  dashboard, 404, and the page renders with no CSS at all. The browser fetches
+  them before any JavaScript runs, so `static/js/api.js` being mode-aware cannot
+  rescue the first paint.
+
+  4.1.9 shipped an `after_request` hook that rewrote them, gated on
+  `X-Forwarded-For`. 4.1.19 deleted it, because that gate cannot tell the
+  dashboard's two routes apart - Go's reverse proxy sets `X-Forwarded-For` on
+  **both**. On the appgui subdomain we are already at our own root, so rewriting
+  there pointed every asset at the dashboard and the iframe rendered nothing.
+  Deleting it fixed the subdomain and silently broke the proxy route. **The gate
+  was the bug**; the rewriting is still required on one of the two routes.
+
+  The hook is back, gated on `X-Embernet-Proxy-Prefix` - set by the dashboard
+  (v4.9.6) **only** on the routes that serve us under its origin, and carrying
+  the exact prefix our URLs must take. Absent means we are at our own root and
+  nothing is touched, so 4.1.19's fix is preserved.
+
+### Changed
+
+- The prefix is no longer guessed from `request.host`. The old version hardcoded
+  `/api/proxy?target=http://{host}`, a cross-repo pin that is also wrong for
+  `/api/appview` - the route Ignition Edge GUIs use - where the path travels in a
+  query parameter and must be percent-encoded. A prefix ending in `path=` selects
+  that encoding.
+- Rewriting is a regex over `href`/`src`/`fetch(` rather than string replacement,
+  so only root-absolute URLs are touched and an external `https://` href is left
+  alone. Streamed responses (`direct_passthrough`) are skipped.
+
+---
+
 ## [4.4.20] - 2026-08-17: One Number To Deploy
 
 Consolidation release. **Deploy this one.** No code change from 4.1.21 — the
