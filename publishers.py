@@ -9,6 +9,7 @@ License: MIT
 
 import json
 import logging
+import re
 import os
 import secrets
 import threading
@@ -18,6 +19,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple
 import paho.mqtt.client as mqtt
 from flask import Flask, jsonify, request
+from urllib.parse import quote
 from flask_cors import CORS
 
 from version import __version__
@@ -542,26 +544,67 @@ class RESTAPIPublisher(DataPublisher):
         except ImportError as e:
             self.logger.warning(f"Web UI Blueprint not available: {e}")
         
-        # NO PROXY URL REWRITING. This used to rewrite every absolute href/src
-        # and fetch() in our HTML to `/api/proxy?target=http://<our host>/...`,
-        # gated on X-Forwarded-For.
+        # Proxy-aware URL rewriting, gated on the DASHBOARD SAYING SO.
         #
-        # That gate does not distinguish the two ways the dashboard serves an
-        # app, and X-Forwarded-For is set on BOTH. The dashboard's primary route
-        # serves an app at the ROOT of its own hostname
-        # (`<svc>--<tenant>--<ns>--<port>.apps.embernet.ai`), where absolute
-        # paths already resolve correctly. Rewriting them there pointed every
-        # asset and every API call at the DASHBOARD's origin, for an app that is
-        # not served there — so the iframe opened and rendered nothing.
+        # The dashboard serves an app two ways, and they need opposite behaviour:
         #
-        # `/api/proxy?target=` is a compatibility fallback, not something to
-        # design against: see the dashboard's own
-        # documentation/internal/App_Store_GUI_Shell_Alignment.md, which names
-        # this hook as "direction B", calls it the worse of the two failure
-        # modes because it pins an app to the fallback for good, and lists
-        # unpinning EmberBurn as an open decision.
+        #   appgui subdomain   <svc>--<tenant>--<ns>--<port>.apps.embernet.ai
+        #                      We are at our own root, absolute paths already
+        #                      resolve, and rewriting here breaks every one.
+        #   path proxy         /api/proxy?target=...  and  /api/appview?...
+        #                      We are under the DASHBOARD's origin, so our
+        #                      absolute paths resolve against it and 404. The
+        #                      stylesheet never loads and the page paints as
+        #                      unstyled HTML.
         #
-        # Serving at our own root needs no rewriting at all.
+        # 4.1.9 added this rewriting gated on X-Forwarded-For. 4.1.19 deleted it,
+        # because that gate cannot tell the two routes apart -- Go's reverse
+        # proxy sets X-Forwarded-For on BOTH -- so it was rewriting on the
+        # subdomain too and the iframe rendered nothing. Deleting it fixed the
+        # subdomain and silently broke the proxy route. The GATE was the bug; the
+        # rewriting is still required on one of the two routes.
+        #
+        # X-Embernet-Proxy-Prefix is set by the dashboard ONLY on the routes that
+        # serve us under its origin, and carries the exact prefix our URLs must
+        # take. Absent means we are at our own root and nothing is touched.
+        #
+        # The prefix is no longer guessed from request.host. The old version
+        # hardcoded "/api/proxy?target=http://{host}", which is a cross-repo pin
+        # and is simply wrong for /api/appview, where our path travels in a query
+        # parameter and therefore has to be percent-encoded.
+        _ABS_URL_ATTR = re.compile(r"""\b(href|src)=("|')(/[^"']*)\2""")
+        _ABS_URL_FETCH = re.compile(r"""\bfetch\((\s*)("|')(/[^"']*)\2""")
+
+        @self.app.after_request
+        def rewrite_proxy_urls(response):
+            proxy_prefix = request.headers.get("X-Embernet-Proxy-Prefix")
+            if not proxy_prefix:
+                return response
+            if not response.content_type or "text/html" not in response.content_type:
+                return response
+            # Streamed responses have no body to rewrite and touching them
+            # raises; send_file() uses this.
+            if response.direct_passthrough:
+                return response
+
+            # /api/appview carries our path in a query parameter, so it must be
+            # percent-encoded. /api/proxy?target=<url> takes it inline.
+            encode = proxy_prefix.endswith("path=")
+
+            def wrap(path):
+                return proxy_prefix + (quote(path, safe="") if encode else path)
+
+            def _attr(m):
+                return "%s=%s%s%s" % (m.group(1), m.group(2), wrap(m.group(3)), m.group(2))
+
+            def _fetch(m):
+                return "fetch(%s%s%s%s" % (m.group(1), m.group(2), wrap(m.group(3)), m.group(2))
+
+            data = response.get_data(as_text=True)
+            data = _ABS_URL_ATTR.sub(_attr, data)
+            data = _ABS_URL_FETCH.sub(_fetch, data)
+            response.set_data(data)
+            return response
 
         # Setup API routes
         self.setup_routes()
