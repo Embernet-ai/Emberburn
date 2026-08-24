@@ -8,6 +8,54 @@ entries:
       catalog.cattle.io/featured: "true"
       catalog.cattle.io/provides-gvr: apps/v1/Deployment
       catalog.cattle.io/release-name: emberburn
+      catalog.cattle.io/upstream-version: 4.4.22
+      fireball.industries/branding: emberburn
+      fireball.industries/project-type: industrial-iot-gateway
+      fireball.industries/protocols: "15"
+      fireball.industries/web-ui: "true"
+    apiVersion: v2
+    appVersion: 4.4.22
+    created: "2026-08-24T01:35:25.016812559Z"
+    description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
+      web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
+      is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
+      API, GraphQL, Sparkplug B, Kafka, AMQP, WebSocket, Modbus TCP, Prometheus metrics,
+      InfluxDB integration, alarms, data transformation, SQLite persistence, and a
+      beautiful Python Flask web UI for configuration and monitoring. '
+    digest: f34c601a9f84134eb0082511d8cc3ee42d438818de8adec592200acd22a18322
+    home: https://fireballz.ai/emberburn
+    icon: data:image/png;base64,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
+    keywords:
+    - opcua
+    - industrial-iot
+    - scada
+    - mqtt
+    - modbus
+    - prometheus
+    - graphql
+    - data-transformation
+    - emberburn
+    - fireball-industries
+    - forge-industrial
+    maintainers:
+    - email: patrick@fireball-industries.com
+      name: Patrick Ryan
+      url: https://fireballz.ai
+    name: emberburn
+    sources:
+    - https://github.com/Embernet-ai/Emberburn
+    - https://github.com/Embernet-ai/helm-charts
+    type: application
+    urls:
+    - https://embernet-ai.github.io/Emberburn/emberburn-4.4.22.tgz
+    version: 4.4.22
+  - annotations:
+      catalog.cattle.io/categories: Forge Industrial,IoT Gateway,SCADA,OPC UA,Monitoring
+      catalog.cattle.io/certified: fireball
+      catalog.cattle.io/display-name: EmberBurn - Multi-Protocol IoT Gateway
+      catalog.cattle.io/featured: "true"
+      catalog.cattle.io/provides-gvr: apps/v1/Deployment
+      catalog.cattle.io/release-name: emberburn
       catalog.cattle.io/upstream-version: 4.4.21
       fireball.industries/branding: emberburn
       fireball.industries/project-type: industrial-iot-gateway
@@ -15,7 +63,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.4.21
-    created: "2026-08-19T13:05:15.213213189Z"
+    created: "2026-08-24T01:35:25.014418484Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -63,7 +111,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.4.20
-    created: "2026-08-19T13:05:15.210784785Z"
+    created: "2026-08-24T01:35:25.012140851Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -111,7 +159,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.21
-    created: "2026-08-19T13:05:15.207986524Z"
+    created: "2026-08-24T01:35:25.010143192Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -159,7 +207,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.20
-    created: "2026-08-19T13:05:15.205056078Z"
+    created: "2026-08-24T01:35:25.008119044Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -207,7 +255,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.19
-    created: "2026-08-19T13:05:15.20351677Z"
+    created: "2026-08-24T01:35:25.005508474Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -255,7 +303,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.17
-    created: "2026-08-19T13:05:15.201943411Z"
+    created: "2026-08-24T01:35:25.003551311Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -303,7 +351,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.17
-    created: "2026-08-19T13:05:15.200339658Z"
+    created: "2026-08-24T01:35:25.001580433Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -351,7 +399,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.15
-    created: "2026-08-19T13:05:15.198163722Z"
+    created: "2026-08-24T01:35:24.999478469Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -399,7 +447,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.14
-    created: "2026-08-19T13:05:15.196518648Z"
+    created: "2026-08-24T01:35:24.996776314Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -447,7 +495,7 @@ entries:
       fireball.industries/web-ui: "true"
     apiVersion: v2
     appVersion: 4.1.13
-    created: "2026-08-19T13:05:15.194413242Z"
+    created: "2026-08-24T01:35:24.994725526Z"
     description: 'OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed
       web UI. Because your industrial data deserves to be as hot as your infrastructure.  EmberBurn
       is a multi-protocol industrial IoT gateway featuring OPC UA server, MQTT, REST
@@ -481,4 +529,4 @@ entries:
     urls:
     - https://embernet-ai.github.io/Emberburn/emberburn-4.1.13.tgz
     version: 4.1.13
-generated: "2026-08-19T13:05:15.19228303Z"
+generated: "2026-08-24T01:35:24.992488559Z"
