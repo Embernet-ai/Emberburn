@@ -3,6 +3,43 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.21 — 2026-08-19
+
+The web UI renders again when the dashboard embeds it.
+
+Our stylesheet and script tags are root-absolute. On the dashboard's path-proxy
+route the page is served under `dashboard.embernet.ai`, so every one of them
+resolves against the dashboard, 404s, and the first paint has no CSS at all. The
+browser fetches those before any JavaScript runs, so making `api.js` mode-aware
+cannot rescue it.
+
+4.1.9 rewrote them with an `after_request` hook gated on `X-Forwarded-For`.
+4.1.19 deleted the hook, because that gate cannot tell the dashboard's two routes
+apart: Go's reverse proxy sets `X-Forwarded-For` on both of them. On the appgui
+subdomain the app is already at its own root, so rewriting there pointed every
+asset at the dashboard and the iframe rendered nothing. Deleting it fixed the
+subdomain and silently broke the proxy route.
+
+The gate was the bug, not the rewriting. The hook is back, gated on
+`X-Embernet-Proxy-Prefix`, which the dashboard sets from v4.9.6 only on the
+routes that serve us under its own origin, and which carries the exact prefix the
+URLs have to take. Absent means we are at our own root and nothing is touched, so
+4.1.19's fix is preserved rather than reverted.
+
+The prefix is no longer guessed from `request.host`. That hardcoded
+`/api/proxy?target=http://{host}`, a cross-repo pin, and it is wrong for
+`/api/appview`, the route Ignition Edge GUIs use, where the path travels in a
+query parameter and has to be percent-encoded. A prefix ending in `path=` selects
+that encoding. Rewriting is a regex over `href`, `src` and `fetch(` rather than a
+string replacement, so only root-absolute URLs are touched, an external `https://`
+href is left alone, and streamed responses are skipped.
+
+**Exercised:** the embedded UI painting with styles on the dashboard's proxy
+route, and the appgui subdomain still rendering at its own root.
+
+**Not exercised:** nothing in this release touches the metrics path, which was
+found broken separately and is fixed in 4.4.22.
+
 ## v4.4.20 — 2026-08-17
 
 Consolidation release, and the one to deploy. No code change from 4.1.21; the

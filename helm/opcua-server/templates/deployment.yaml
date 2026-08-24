@@ -108,9 +108,14 @@ spec:
         - name: opcua
           containerPort: {{ .Values.emberburn.ports.opcua }}
           protocol: TCP
-        - name: prometheus
-          containerPort: {{ .Values.emberburn.ports.prometheus }}
-          protocol: TCP
+        {{- /*
+          No prometheus containerPort. Nothing in the image binds one.
+          PrometheusPublisher serves /metrics through the Flask app on the webui
+          port, so a third containerPort here advertised a listener that never
+          existed. It cannot be repointed at the webui port either: two
+          containerPorts with the same number and protocol are rejected by the
+          API server. The metrics Service reaches it by port number instead.
+        */}}
         env:
         {{- /*
           Sparkplug broker credentials come from a Secret, never the ConfigMap.

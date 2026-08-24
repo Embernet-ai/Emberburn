@@ -30,7 +30,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.4.21"
+    tag: "4.4.22"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
@@ -45,10 +45,10 @@ emberburn:
   # Protocol ports
   ports:
     opcua: 4840 # OPC UA Server
-    webui: 5000 # REST API + Web UI
-    prometheus: 8000 # Prometheus metrics
+    webui: 5000 # REST API + Web UI, and /metrics is served here too
     # RESERVED — not yet wired into any template. Declared so the port map stays
     # complete; setting them today has no effect on the rendered manifests.
+    prometheus: 8000 # Prometheus metrics: the SERVICE port only, nothing binds it
     modbus: 5020 # Modbus TCP (if enabled)
     websocket: 9001 # WebSocket (if enabled)
 
@@ -326,10 +326,26 @@ service:
     annotations: {}
 
   # Prometheus Metrics Service
+  #
+  # targetPort is the WEB UI port, not 8000, and that is not a typo.
+  # PrometheusPublisher.start() binds nothing: it registers metrics against the
+  # default registry and lets the Flask app in RESTAPIPublisher serve them at
+  # /metrics on service.webui.port. Its own comment says so, "No separate server
+  # needed".
+  #
+  # This Service used to target 8000, so every scrape of it was refused while
+  # /metrics answered 200 on 5000 the whole time. Nothing failed loudly: the
+  # publisher reported enabled, the Service existed, and the dashboard rendered
+  # an endpoint from the service-type: prometheus label that could never answer.
+  # Found on fragua-edge-01, where the gateway had been unmonitored since it was
+  # deployed.
+  #
+  # port stays 8000 so anything already pointed at <release>-metrics:8000 keeps
+  # resolving; only the far end moves.
   prometheus:
     type: ClusterIP
     port: 8000
-    targetPort: 8000
+    targetPort: 5000
     protocol: TCP
     annotations: {}
 

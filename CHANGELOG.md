@@ -5,6 +5,38 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.22] - 2026-08-24: The Metrics Service Pointed At A Port Nothing Binds
+
+### Fixed
+
+- **Every scrape of `<release>-metrics:8000` was refused, and had been since the
+  Service was introduced.** `PrometheusPublisher.start()` binds no listener. It
+  registers metrics against the default registry and the Flask app in
+  `RESTAPIPublisher` serves them at `/metrics` on the web UI port. The publisher
+  says as much in its own body, "No separate server needed". The Service was
+  still forwarding to `targetPort: 8000`, so the metrics existed and nothing
+  could reach them.
+
+  Nothing failed loudly, which is why it survived. The publisher reported
+  `enabled`, the Service object existed, `/metrics` answered `200` on `5000` the
+  whole time, and the dashboard rendered an endpoint off the
+  `service-type: prometheus` label that could never answer. Found on
+  `fragua-edge-01`, which had therefore been unmonitored for its entire life.
+
+  `service.prometheus.targetPort` is `5000` now. `port` stays `8000`, so any
+  existing scrape config or dashboard entry pointed at `<release>-metrics:8000`
+  keeps resolving and only the far end moves.
+
+- **Dropped the `prometheus` containerPort.** It advertised a listener that never
+  existed. It cannot simply be repointed at the web UI port either, because two
+  containerPorts with the same number and protocol are rejected by the API
+  server. The metrics Service reaches the app by port number instead, and
+  `webui` stays first in the list, which the dashboard depends on for its Launch
+  UI proxy.
+
+  `emberburn.ports.prometheus` stays in the port map, moved down to the RESERVED
+  group beside `modbus` and `websocket`, because it still names the Service port.
+
 ## [4.4.21] - 2026-08-19: The Web UI Renders Again When The Dashboard Embeds It
 
 ### Fixed
