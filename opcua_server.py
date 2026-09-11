@@ -787,6 +787,50 @@ class OPCUAServer:
             )
         )
 
+    def _compute_sim_value(self, sim_type, tag_name, tag_data, current_value, config, tag_type, timestamp):
+        """
+        Dispatch to the generator for one simulation tick, at an arbitrary
+        `timestamp` — not necessarily "now".
+
+        Factored out of `update_tags` so `backfill_tag_history` can replay the
+        exact same per-tag logic across historical timestamps (advancing each
+        tag's `sim` state chronologically) instead of re-implementing or
+        approximating it. Anything reading another tag's *live* value
+        (hysteresis/thermostat/follows) reads whatever that tag's variable
+        currently holds, which during backfill is the previous tag's own
+        just-computed historical step — correct as long as backfill visits
+        timestamps in increasing order, which it does.
+        """
+        if sim_type == "random":
+            return self.generate_random_value(config, tag_type)
+        elif sim_type == "increment":
+            return self.generate_increment_value(current_value, config, tag_type)
+        elif sim_type == "sine":
+            return self.generate_sine_value(config, tag_type)
+        elif sim_type == "duty_cycle":
+            return self.generate_duty_cycle_value(tag_name, tag_data, timestamp)
+        elif sim_type == "hysteresis":
+            return self.generate_hysteresis_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "event":
+            return self.generate_event_value(tag_name, tag_data, timestamp)
+        elif sim_type == "walk":
+            return self.generate_walk_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "bursty_walk":
+            return self.generate_bursty_walk_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "stepped":
+            return self.generate_stepped_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "spike_floor":
+            return self.generate_spike_floor_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "thermostat":
+            return self.generate_thermostat_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "follows":
+            return self.generate_follows_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "accumulate":
+            return self.generate_accumulate_value(tag_name, tag_data, current_value, timestamp)
+        elif sim_type == "clock":
+            return self.generate_clock_value(tag_name, tag_data)
+        return None
+
     def update_tags(self):
         """Update tag values based on simulation configuration."""
         timestamp = time.time()
@@ -808,30 +852,9 @@ class OPCUAServer:
                 if not config.get("simulate", False):
                     sim_type = None
 
-                if sim_type == "random":
-                    new_value = self.generate_random_value(config, tag_type)
-                elif sim_type == "increment":
-                    new_value = self.generate_increment_value(current_value, config, tag_type)
-                elif sim_type == "sine":
-                    new_value = self.generate_sine_value(config, tag_type)
-                elif sim_type == "duty_cycle":
-                    new_value = self.generate_duty_cycle_value(tag_name, tag_data, timestamp)
-                elif sim_type == "hysteresis":
-                    new_value = self.generate_hysteresis_value(tag_name, tag_data, current_value, timestamp)
-                elif sim_type == "event":
-                    new_value = self.generate_event_value(tag_name, tag_data, timestamp)
-                elif sim_type == "walk":
-                    new_value = self.generate_walk_value(tag_name, tag_data, current_value, timestamp)
-                elif sim_type == "thermostat":
-                    new_value = self.generate_thermostat_value(tag_name, tag_data, current_value, timestamp)
-                elif sim_type == "follows":
-                    new_value = self.generate_follows_value(tag_name, tag_data, current_value, timestamp)
-                elif sim_type == "accumulate":
-                    new_value = self.generate_accumulate_value(tag_name, tag_data, current_value, timestamp)
-                elif sim_type == "clock":
-                    new_value = self.generate_clock_value(tag_name, tag_data)
-                else:
-                    new_value = None
+                new_value = self._compute_sim_value(
+                    sim_type, tag_name, tag_data, current_value, config, tag_type, timestamp
+                )
 
                 if new_value is not None and new_value != current_value:
                     var.set_value(new_value)
@@ -843,6 +866,106 @@ class OPCUAServer:
 
             except Exception as e:
                 self.logger.error(f"Error updating tag {tag_name}: {e}")
+
+    def backfill_tag_history(self):
+        """
+        Retroactively seed history for every tag carrying a `backfill` block,
+        so a chart opened the instant this process starts already has a full
+        window of history instead of growing flat-lined from zero.
+
+        Anchor is the top of the CURRENT wall-clock even-hour boundary
+        (10:00, 12:00, 14:00, ...) — not "window_minutes ago" — because the
+        chart's own window is defined the same way (10:00-12:00, 12:00-14:00,
+        ...), and anchoring to "now minus N minutes" would drift out of that
+        boundary by however many minutes past the hour the process happened
+        to start.
+
+        Replays `_compute_sim_value` tick-by-tick from the anchor up to
+        (not including) the real start time, at `sample_interval_seconds`,
+        so each tag's `sim` state (walk position, burst timers, step levels)
+        evolves exactly as it would have live — the last backfilled sample
+        and the first live sample are continuous, not a seam. The live OPC UA
+        variable is left set to that last backfilled value for the same
+        reason.
+
+        Requires a SQLitePersistencePublisher in publisher_manager.publishers
+        with tag history enabled — silently does nothing without one, since
+        there is nowhere durable to put backfilled rows (writing them only to
+        the live OPC UA variable would have live ticking immediately overwrite
+        them, defeating the point).
+        """
+        if not self.publisher_manager:
+            return
+
+        sqlite_pub = None
+        for pub in self.publisher_manager.publishers:
+            if pub.__class__.__name__ == "SQLitePersistencePublisher":
+                sqlite_pub = pub
+                break
+        if sqlite_pub is None or not getattr(sqlite_pub, "enable_tag_history", False):
+            self.logger.info("backfill_tag_history: no SQLite tag-history publisher configured — skipping")
+            return
+
+        real_now = time.time()
+
+        for tag_name, tag_data in self.tags.items():
+            config = tag_data["config"]
+            backfill_cfg = config.get("backfill")
+            if not backfill_cfg or not config.get("simulate", False):
+                continue
+
+            window_minutes = float(backfill_cfg.get("window_minutes", 120))
+            interval = float(backfill_cfg.get("sample_interval_seconds", 10))
+            if interval <= 0:
+                self.logger.warning(f"{tag_name}: backfill.sample_interval_seconds must be > 0 — skipping")
+                continue
+
+            # Top of the current even-hour boundary, e.g. 11:47 -> 10:00 same day.
+            now_struct = time.localtime(real_now)
+            even_hour = now_struct.tm_hour - (now_struct.tm_hour % 2)
+            anchor = time.mktime((now_struct.tm_year, now_struct.tm_mon, now_struct.tm_mday,
+                                   even_hour, 0, 0, 0, 0, now_struct.tm_isdst))
+
+            # window_minutes is informational/config-validation here — the
+            # anchor is ALWAYS the even-hour boundary, per spec, not
+            # `real_now - window_minutes`. Warn rather than silently diverge
+            # if someone configures a window that doesn't match a 2-hour block.
+            if abs(window_minutes - 120.0) > 0.01:
+                self.logger.warning(
+                    f"{tag_name}: backfill.window_minutes={window_minutes} but the anchor is always "
+                    f"the even-hour boundary (a 120-minute block) — the configured window is ignored "
+                    f"for anchor calculation, only used below to sanity-check sample count."
+                )
+
+            sim_type = config.get("simulation_type", "random")
+            tag_type = tag_data["type"]
+            var = tag_data["variable"]
+
+            try:
+                current_value = var.get_value()
+            except Exception:
+                current_value = config.get("initial_value", 0)
+
+            rows = []
+            t = anchor
+            n_samples = 0
+            while t < real_now:
+                new_value = self._compute_sim_value(
+                    sim_type, tag_name, tag_data, current_value, config, tag_type, t
+                )
+                if new_value is not None:
+                    current_value = new_value
+                rows.append((tag_name, current_value, tag_type, datetime.fromtimestamp(t).isoformat()))
+                n_samples += 1
+                t += interval
+
+            if rows:
+                var.set_value(current_value)
+                sqlite_pub.seed_history(rows)
+                self.logger.info(
+                    f"{tag_name}: backfilled {n_samples} samples from "
+                    f"{datetime.fromtimestamp(anchor).isoformat()} to now (every {interval}s)"
+                )
 
     def generate_random_value(self, config, tag_type):
         """
@@ -1169,6 +1292,151 @@ class OPCUAServer:
             return int(round(value))
         return round(value, 2)
 
+    def generate_bursty_walk_value(self, tag_name, tag_data, current_value, now):
+        """
+        Generate a bounded random walk that periodically excursions into a
+        second, higher band — a CPU that idles in a normal range and then
+        takes on real work for a while, not a load average that just wanders
+        forever. Without the burst band this is indistinguishable from `walk`,
+        which is exactly why `walk` alone was wrong for "looks like a live box
+        under occasional load."
+
+        The walk always targets whichever band is currently active (baseline
+        or burst); `step` bounds how far a single tick can move toward that
+        target, so entering/leaving a burst is a few ticks of ramp, not a
+        single-sample cliff.
+
+        Config: min, max (baseline band), step, burst_min, burst_max
+                (burst band), burst_interval_seconds (mean time between burst
+                starts — exponentially distributed, like `event`, so bursts
+                don't fall into lockstep), burst_duration_min,
+                burst_duration_max
+
+        Returns:
+            float: value of the tag's declared type, clamped to the active band
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        min_val = float(config.get("min", 15.0))
+        max_val = float(config.get("max", 35.0))
+        step = float(config.get("step", 2.0))
+        burst_min = float(config.get("burst_min", 60.0))
+        burst_max = float(config.get("burst_max", 75.0))
+        burst_interval = float(config.get("burst_interval_seconds", 180.0))
+        duration_min = float(config.get("burst_duration_min", 20.0))
+        duration_max = max(duration_min, float(config.get("burst_duration_max", 45.0)))
+
+        if "next_burst" not in state:
+            state["bursting"] = False
+            state["next_burst"] = now + random.expovariate(1.0 / burst_interval) if burst_interval > 0 else float("inf")
+
+        if state["bursting"]:
+            if now >= state.get("burst_until", now):
+                state["bursting"] = False
+                state["next_burst"] = now + (random.expovariate(1.0 / burst_interval) if burst_interval > 0 else float("inf"))
+        elif now >= state["next_burst"]:
+            state["bursting"] = True
+            state["burst_until"] = now + random.uniform(duration_min, duration_max)
+
+        target_min, target_max = (burst_min, burst_max) if state["bursting"] else (min_val, max_val)
+
+        try:
+            value = float(current_value)
+        except (TypeError, ValueError):
+            value = (min_val + max_val) / 2.0
+
+        value += random.uniform(-step, step)
+        value = max(target_min, min(target_max, value))
+
+        if tag_data["type"] == "int":
+            return int(round(value))
+        return round(value, 2)
+
+    def generate_stepped_value(self, tag_name, tag_data, current_value, now):
+        """
+        Generate a value that holds flat, then steps to a new level, then
+        holds flat again — memory pressure, not CPU. RAM does not jitter
+        continuously the way a scheduler-driven load average does; it sits at
+        whatever the working set currently is and moves in discrete steps
+        when that working set changes.
+
+        Config: min, max (overall band), step_min, step_max (size of each
+                step, sign chosen at random), hold_seconds_min,
+                hold_seconds_max (dwell time at each level)
+
+        Returns:
+            float: value of the tag's declared type, clamped to [min, max]
+        """
+        config = tag_data["config"]
+        state = self.sim_state(tag_data)
+
+        min_val = float(config.get("min", 40.0))
+        max_val = float(config.get("max", 60.0))
+        step_min = float(config.get("step_min", 5.0))
+        step_max = max(step_min, float(config.get("step_max", 10.0)))
+        hold_min = float(config.get("hold_seconds_min", 60.0))
+        hold_max = max(hold_min, float(config.get("hold_seconds_max", 240.0)))
+
+        if "level" not in state:
+            try:
+                state["level"] = float(current_value)
+            except (TypeError, ValueError):
+                state["level"] = (min_val + max_val) / 2.0
+            state["next_step"] = now + random.uniform(hold_min, hold_max)
+
+        if now >= state["next_step"]:
+            delta = random.uniform(step_min, step_max) * random.choice([-1, 1])
+            state["level"] = max(min_val, min(max_val, state["level"] + delta))
+            state["next_step"] = now + random.uniform(hold_min, hold_max)
+
+        value = state["level"]
+        if tag_data["type"] == "int":
+            return int(round(value))
+        return round(value, 2)
+
+    def generate_spike_floor_value(self, tag_name, tag_data, current_value, now):
+        """
+        Generate a value that sits at a near-constant floor, occasionally
+        ticks up to a modest ceiling, and very rarely spikes to a hard
+        maximum for exactly one sample — real-time jitter on an isolated
+        core, not a sensor reading. Both the tick and the spike are
+        independent per-call draws, deliberately: a real single-sample spike
+        does not announce itself with a ramp, and forcing one here (an
+        "approach" over several ticks) would make it look like load, not
+        jitter.
+
+        Config: floor, floor_noise (tiny +/- noise so the floor is not
+                perfectly dead), tick_max, tick_probability (per-call chance
+                of a small tick), spike_max, spike_probability (per-call
+                chance of a full spike — keep this small; at N samples over
+                the demo window, N * spike_probability is roughly how many
+                spikes you should expect to see)
+
+        Returns:
+            float: value of the tag's declared type
+        """
+        config = tag_data["config"]
+
+        floor = float(config.get("floor", 1.0))
+        floor_noise = float(config.get("floor_noise", 0.1))
+        tick_max = float(config.get("tick_max", 3.0))
+        tick_probability = float(config.get("tick_probability", 0.05))
+        spike_max = float(config.get("spike_max", 36.0))
+        spike_probability = float(config.get("spike_probability", 0.0015))
+
+        roll = random.random()
+        if roll < spike_probability:
+            value = random.uniform(tick_max, spike_max)
+        elif roll < spike_probability + tick_probability:
+            value = random.uniform(floor, tick_max)
+        else:
+            value = max(0.0, floor + random.uniform(-floor_noise, floor_noise))
+
+        if tag_data["type"] == "int":
+            return int(round(value))
+        return round(value, 2)
+
     def generate_thermostat_value(self, tag_name, tag_data, current_value, now):
         """
         Generate a temperature that responds to a driver boolean.
@@ -1394,7 +1662,13 @@ class OPCUAServer:
                 # does — otherwise they stay at their initial value until
                 # someone happens to redefine a tag.
                 self.sync_computed_tags()
-            
+
+                # Must run after publishers are started (needs the SQLite
+                # publisher live) and before the main loop (a tag with
+                # backfill should never be seen flat-lined at zero, even for
+                # one tick).
+                self.backfill_tag_history()
+
             self.print_server_info()
             
             # Main loop

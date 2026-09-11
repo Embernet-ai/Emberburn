@@ -5,6 +5,54 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.23] - 2026-09-11: Real Simulation Types For Host Metrics, And A Silent Data-Type Bug
+
+### Added
+
+- **Three new simulation types** for tag families that `sine`/`random`/`walk`
+  cannot honestly produce:
+  - `bursty_walk` — a bounded random walk that periodically excursions into a
+    second, higher band (a CPU that idles and then takes on real work for a
+    while, not a load average that only ever wanders).
+  - `stepped` — holds a level, then steps to a new one, then holds again
+    (memory pressure, which moves in discrete steps when the working set
+    changes, not the continuous jitter a scheduler-driven load average has).
+  - `spike_floor` — a near-constant floor with an occasional small tick and a
+    very rare single-sample spike to a hard ceiling (real-time scheduling
+    jitter on an isolated core — both events are independent per-tick draws
+    on purpose, since a real spike doesn't ramp up to announce itself).
+
+- **Tag-level backfill.** A tag config carrying a `backfill` block
+  (`window_minutes`, `sample_interval_seconds`) gets its history seeded
+  retroactively at startup, anchored to the current wall-clock even-hour
+  boundary (10:00, 12:00, 14:00, ...) rather than "now minus N minutes" — so
+  the anchor matches whatever 2-hour window a consumer's chart is itself
+  keyed to. Replays the tag's own simulation tick-by-tick from the anchor to
+  the real start time (via the new `_compute_sim_value` — the same dispatch
+  `update_tags` now calls, not a re-implementation), so a tag's `sim` state
+  (walk position, burst timers, step level) evolves exactly as it would have
+  live, and the last backfilled sample and the first live sample are
+  continuous. Requires `sqlite_persistence` enabled with tag history on;
+  logs and skips otherwise rather than pretending to have backfilled nothing.
+
+- **`GET /api/tags/<tag_name>/history`** on the REST API publisher — the pull
+  side of the above. Wired to `SQLitePersistencePublisher.get_tag_history`,
+  which existed and had for some time, unreached by any route.
+
+### Fixed
+
+- **`SQLitePersistencePublisher.publish()` had a different signature than
+  every other publisher** — `(tag_name, value, data_type)` where
+  `PublisherManager.publish_to_all` calls all of them uniformly as
+  `(tag_name, value, timestamp)`. The mismatch was silent: the timestamp
+  float landed in the `data_type` string column, so every LIVE tag_history
+  row (backfilled rows were unaffected — they never went through `publish()`)
+  recorded a garbled value like `"1789106565.284"` instead of `"float"` or
+  `"int"`. Found by actually reading history back rather than by inspection.
+  Now resolves the real declared type from `tag_metadata` rather than
+  `type(value).__name__`, so an int-typed tag whose current value happens to
+  be a Python float does not get misrecorded either.
+
 ## [4.4.22] - 2026-08-24: The Metrics Service Pointed At A Port Nothing Binds
 
 ### Fixed

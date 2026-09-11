@@ -515,6 +515,12 @@ class RESTAPIPublisher(DataPublisher):
         self.tag_cache = {}
         self.write_callback = None
         self.delete_callback = None
+        # Set by PublisherManager after all publishers are constructed (this
+        # one is built before SQLitePersistencePublisher in initialize_publishers'
+        # fixed order, so it cannot be handed a reference at __init__ time).
+        # None when sqlite_persistence isn't enabled — the /history route
+        # below reports that plainly rather than 500ing.
+        self.sqlite_publisher = None
         # Registers a full tag definition — type, simulation model, persistence
         # — rather than just setting a value. See set_define_callback.
         self.define_callback = None
@@ -656,6 +662,40 @@ class RESTAPIPublisher(DataPublisher):
                 return jsonify(self.tag_cache[tag_name])
             return jsonify({"error": "Tag not found"}), 404
         
+        @self.app.route('/api/tags/<tag_name>/history', methods=['GET'])
+        def get_tag_history_route(tag_name):
+            """
+            Historical values for one tag, from the SQLite persistence
+            publisher (if configured) — this is the "pull" side of backfill:
+            OPCUAServer.backfill_tag_history seeds the rows at startup, this
+            is how a consumer (the dashboard) actually reads them back.
+
+            Query params: start_time, end_time (ISO 8601), limit (default
+            1000, matching SQLitePersistencePublisher.get_tag_history's own
+            default — not re-decided here).
+            """
+            if self.sqlite_publisher is None:
+                return jsonify({
+                    "error": "History unavailable: sqlite_persistence publisher is not configured"
+                }), 503
+
+            start_time = request.args.get('start_time')
+            end_time = request.args.get('end_time')
+            limit = request.args.get('limit', default=1000, type=int)
+
+            rows = self.sqlite_publisher.get_tag_history(
+                tag_name, start_time=start_time, end_time=end_time, limit=limit
+            )
+            # get_tag_history orders DESC (most recent first, for LIMIT to cap
+            # the RIGHT end of an open-ended query) — a chart wants
+            # chronological order, so reverse here rather than change what an
+            # existing, presumably-relied-upon method returns.
+            samples = [
+                {"tag_name": r[0], "value": r[1], "data_type": r[2], "timestamp": r[3]}
+                for r in reversed(rows)
+            ]
+            return jsonify({"tag_name": tag_name, "count": len(samples), "samples": samples})
+
         @self.app.route('/api/tags/discovery', methods=['GET'])
         def discover_tags():
             """Discover all available tags with metadata."""
@@ -3684,25 +3724,42 @@ class SQLitePersistencePublisher(DataPublisher):
         except Exception as e:
             self.logger.error(f"Error stopping SQLite persistence: {e}")
     
-    def publish(self, tag_name: str, value: Any, data_type: str):
+    def publish(self, tag_name: str, value: Any, timestamp: Optional[float] = None):
         """
         Publish tag value to SQLite database.
-        
+
+        FIXED: this used to be publish(self, tag_name, value, data_type) —
+        a different signature from every other publisher, which
+        PublisherManager.publish_to_all calls uniformly as
+        publish(tag_name, value, timestamp) for all of them. The mismatch was
+        silent: the timestamp FLOAT landed in the data_type STRING column,
+        so every live-ticked row (backfilled rows are unaffected — they go
+        through seed_history, which was never on this path) recorded its
+        data_type as something like "1789106565.284", not "float"/"int"/etc.
+        Found by actually reading history back and noticing the data_type
+        column was garbage, not by inspection alone.
+
         Args:
             tag_name: Name of the tag
             value: Tag value
-            data_type: Data type of the tag
+            timestamp: Unix timestamp (seconds); defaults to now if not given,
+                       matching every other publisher's contract
         """
         if not self.enabled or not self.enable_tag_history:
             return
-        
+
         try:
-            # Convert value to string for storage
+            # The real declared type, not type(value).__name__ — an int-typed
+            # tag whose current value happens to be a Python float (e.g. an
+            # unset default) would otherwise record the wrong thing.
+            meta = (self.tag_metadata or {}).get(tag_name, {})
+            data_type = meta.get("type", type(value).__name__)
+
             value_str = str(value)
-            timestamp = datetime.now().isoformat()
-            
+            ts = datetime.fromtimestamp(timestamp).isoformat() if timestamp is not None else datetime.now().isoformat()
+
             # Add to write buffer
-            self.write_buffer.append((tag_name, value_str, data_type, timestamp))
+            self.write_buffer.append((tag_name, value_str, data_type, ts))
             
             # Flush if batch size reached
             if len(self.write_buffer) >= self.batch_size:
@@ -3843,6 +3900,39 @@ class SQLitePersistencePublisher(DataPublisher):
         except Exception as e:
             self.logger.error(f"Error flushing tag history: {e}")
     
+    def seed_history(self, rows):
+        """
+        Bulk-insert historical tag_history rows with EXPLICIT timestamps.
+
+        `publish()` above always stamps `datetime.now()` — correct for live
+        ticks, useless for backfill, which by definition writes rows whose
+        timestamp is not "now". This bypasses the write_buffer entirely
+        (backfill runs once, at startup, as a single batch — batching it
+        through the same buffer used for the live trickle would only delay
+        it behind whatever batch_size/flush timing the live path uses) and
+        commits directly.
+
+        Args:
+            rows: iterable of (tag_name, value, data_type, timestamp) tuples,
+                  timestamp as an ISO-format string. Caller is responsible for
+                  producing whatever timestamps it actually wants stored —
+                  this does not stamp anything itself.
+        """
+        if not self.enabled or not self.enable_tag_history or not rows:
+            return
+
+        try:
+            with self.db_lock:
+                cursor = self.connection.cursor()
+                cursor.executemany(
+                    'INSERT INTO tag_history (tag_name, value, data_type, timestamp) VALUES (?, ?, ?, ?)',
+                    [(tag_name, str(value), data_type, timestamp) for tag_name, value, data_type, timestamp in rows]
+                )
+                self.connection.commit()
+                self.logger.info(f"Seeded {len(rows)} backfilled tag_history rows")
+        except Exception as e:
+            self.logger.error(f"Error seeding tag history: {e}")
+
     def _flush_audit_log(self):
         """Flush audit log buffer to database."""
         if not self.audit_buffer:
@@ -4634,7 +4724,17 @@ class PublisherManager:
             transformation_pub = DataTransformationPublisher(transformation_config, self.logger)
             self.publishers.append(transformation_pub)
             self.logger.info("Data Transformation publisher initialized")
-        
+
+        # Wire the REST API publisher's /history route to the SQLite
+        # publisher's query method. Must happen after both are constructed —
+        # REST is built before SQLite above, so neither __init__ can hold
+        # this reference directly.
+        rest_pub = next((p for p in self.publishers if isinstance(p, RESTAPIPublisher)), None)
+        sqlite_pub = next((p for p in self.publishers if isinstance(p, SQLitePersistencePublisher)), None)
+        if rest_pub is not None and sqlite_pub is not None:
+            rest_pub.sqlite_publisher = sqlite_pub
+            self.logger.info("REST API publisher wired to SQLite tag history for /history route")
+
         return self.publishers
     
     def start_all(self):
