@@ -5,7 +5,31 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.4.26] - 2026-09-11: A Deleted Tag Came Back On The Next Restart
+## [4.4.27] - 2026-09-11: InfluxDB Points Had No Way To Say Which Device Sent Them
+
+### Added
+
+- Six industrial tags for the EmberRTOS Task Manager integration:
+  `cpu_util_pct`, `mem_util_pct`, `disk_util_pct`, and per-core
+  `rtos_jitter_core1_us`/`core2_us`/`core3_us`. The three jitter tags are
+  bounded to the real EmberRTOS whitepaper §5.6 per-core ceilings
+  (36/42/31µs) — not arbitrary ranges.
+
+### Fixed
+
+- **`InfluxDBPublisher.publish()` tagged every point `"tag"` and nothing
+  else** — no `device_id`, no `protocol`. A downstream reader with more
+  than one EmberBurn instance writing to the same bucket (the normal case:
+  one instance per simulated device) had no field to filter on to tell
+  them apart, and a reader keying off `tag_name` specifically (the
+  Embernet dashboard's `/api/device/task-metrics`) never matched a single
+  point, because the key was `tag`. Now every point also carries
+  `tag_name` (same value as `tag`, so nothing already reading `tag`
+  breaks), `device_id`, and `protocol`. `device_id` resolves from an
+  explicit config value, then `EMBERBURN_DEVICE_ID`, then the pod/container
+  hostname — so a one-instance-per-device deployment gets a correct,
+  distinct identity with no extra wiring, instead of every instance
+  reporting under the same identity (or none at all).
 
 ### Fixed
 

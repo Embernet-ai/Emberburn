@@ -12,6 +12,7 @@ import logging
 import re
 import os
 import secrets
+import socket
 import threading
 import time
 import requests  # For HTTP requests (Slack webhooks, etc.)
@@ -2703,10 +2704,21 @@ class InfluxDBPublisher(DataPublisher):
         self.measurement = config.get("measurement", "opcua_tags")
         self.batch_size = config.get("batch_size", 100)
         self.flush_interval = config.get("flush_interval", 1000)
-        
+
+        # device_id/protocol: how a downstream consumer (e.g. the Embernet
+        # dashboard's /api/device/task-metrics) tells one simulated device's
+        # points apart from another's. Precedence: explicit config value,
+        # then EMBERBURN_DEVICE_ID (set per-deployment when running one
+        # Emberburn instance per device — a shared config with a hardcoded
+        # device_id would make every instance report under the same
+        # identity), then the pod/container hostname, unique per instance
+        # in any Kubernetes Deployment/StatefulSet with no extra wiring.
+        self.device_id = config.get("device_id") or os.environ.get("EMBERBURN_DEVICE_ID") or socket.gethostname()
+        self.protocol = config.get("protocol", "emberburn")
+
         self.client = None
         self.write_api = None
-        
+
         # Additional tags to add to each point
         self.global_tags = config.get("tags", {})
         
@@ -2778,10 +2790,17 @@ class InfluxDBPublisher(DataPublisher):
         try:
             # Create point
             point = Point(self.measurement)
-            
-            # Add tag name as a tag (for efficient querying)
+
+            # "tag" kept for existing consumers of this publisher; "tag_name"
+            # added alongside it because that's the key a downstream reader
+            # (e.g. the Embernet dashboard's tsdb.QueryDeviceMetrics) actually
+            # filters on — same value, two keys, so nobody already reading
+            # "tag" breaks.
             point.tag("tag", tag_name)
-            
+            point.tag("tag_name", tag_name)
+            point.tag("device_id", self.device_id)
+            point.tag("protocol", self.protocol)
+
             # Add global tags
             for tag_key, tag_value in self.global_tags.items():
                 point.tag(tag_key, tag_value)
