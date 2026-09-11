@@ -3,6 +3,21 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.25 — 2026-09-11
+
+`backfill_tag_history()` only ran once, at process start, over tags loaded
+from a config file. A tag defined afterward through `POST /api/tags/create`
+or `/bulk` — the actual supported way to add tags per this project's
+README — carrying a `backfill` block got none of it: it started flat at
+`initial_value` and grew live from zero.
+
+Extracted the per-tag mechanics into `_backfill_one_tag`, shared by
+`backfill_tag_history` (all config-loaded tags at startup, unchanged) and
+`define_tag` (a single newly-created tag, backfilled the moment it's
+defined). Verified locally: a tag created live via `/api/tags/bulk` came
+back from `/api/tags/<tag_name>/history` with a full even-hour-anchored
+window already populated, no restart required.
+
 ## v4.4.24 — 2026-09-11
 
 All five single-tag REST routes used Flask's default string URL converter,
