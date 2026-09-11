@@ -3,6 +3,34 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.22 — 2026-08-24
+
+The metrics Service pointed at a port nothing binds — and had since it was
+introduced.
+
+`PrometheusPublisher.start()` doesn't open a listener of its own. It registers
+metrics against the default registry, and `RESTAPIPublisher`'s Flask app serves
+them at `/metrics` on the same port as the web UI — the publisher's own code
+says exactly that, "No separate server needed." The Kubernetes Service, though,
+still forwarded to `targetPort: 8000`, which nothing was listening on. Every
+scrape was refused.
+
+Nothing failed loudly, which is how it survived. The publisher reported
+`enabled`, the Service object existed, `/metrics` answered `200` on port `5000`
+the entire time, and the dashboard rendered a monitoring endpoint off the
+`service-type: prometheus` label that could never actually be reached. Found on
+`fragua-edge-01`, which had therefore been unmonitored for its entire life.
+
+`service.prometheus.targetPort` now points at `5000`. `port` stays `8000`, so
+any scrape config or dashboard entry already pointed at
+`<release>-metrics:8000` keeps resolving — only the far end moved. The
+`prometheus` containerPort was dropped outright: it advertised a listener that
+never existed, and it can't just be repointed at the web UI port either,
+because two containerPorts sharing a number and protocol are rejected by the
+API server outright. The metrics Service reaches the app by port number
+instead, and `webui` stays first in the port list, which the dashboard's
+Launch UI proxy depends on.
+
 ## v4.4.21 — 2026-08-19
 
 The web UI renders again when the dashboard embeds it.
