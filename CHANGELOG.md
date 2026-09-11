@@ -5,6 +5,26 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.24] - 2026-09-11: Tag Names With Slashes Were Never Addressable
+
+### Fixed
+
+- **All five single-tag REST routes** (`GET /api/tags/<tag_name>`,
+  `GET /api/tags/<tag_name>/history`, `GET /api/tags/<tag_name>/metadata`,
+  `POST`/`PUT /api/tags/<tag_name>`, `DELETE /api/tags/<tag_name>`) used
+  Flask's default string URL converter, which never matches a literal `/`
+  in a path segment — and Werkzeug decodes a `%2F` back into `/` before
+  routing, so encoding the slash in the request doesn't get around it either.
+  Every tag name that uses a `/`-delimited hierarchy (e.g.
+  `HVAC/AHU_01/FilterDiffPressure`, `PLC_PRG/Alta_Temp` — the convention this
+  project's own tag discovery and export routes already assume) was
+  therefore unreachable by name: 404 on read, write, history, and delete
+  alike. Switched all five routes to Flask's `<path:tag_name>` converter,
+  which matches embedded slashes while still losing route-resolution
+  priority to the static sibling routes (`/api/tags/discovery`,
+  `/api/tags/create`, `/api/tags/bulk`, etc.) — verified directly against a
+  live Flask test client, not just by inspection.
+
 ## [4.4.23] - 2026-09-11: Real Simulation Types For Host Metrics, And A Silent Data-Type Bug
 
 ### Added

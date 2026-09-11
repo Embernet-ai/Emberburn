@@ -655,14 +655,14 @@ class RESTAPIPublisher(DataPublisher):
                 "count": len(self.tag_cache)
             })
         
-        @self.app.route('/api/tags/<tag_name>', methods=['GET'])
+        @self.app.route('/api/tags/<path:tag_name>', methods=['GET'])
         def get_tag(tag_name):
             """Get a specific tag value."""
             if tag_name in self.tag_cache:
                 return jsonify(self.tag_cache[tag_name])
             return jsonify({"error": "Tag not found"}), 404
         
-        @self.app.route('/api/tags/<tag_name>/history', methods=['GET'])
+        @self.app.route('/api/tags/<path:tag_name>/history', methods=['GET'])
         def get_tag_history_route(tag_name):
             """
             Historical values for one tag, from the SQLite persistence
@@ -745,7 +745,7 @@ class RESTAPIPublisher(DataPublisher):
                 self.logger.error(f"Error in tag discovery: {e}")
                 return jsonify({"error": str(e)}), 500
         
-        @self.app.route('/api/tags/<tag_name>/metadata', methods=['GET'])
+        @self.app.route('/api/tags/<path:tag_name>/metadata', methods=['GET'])
         def get_tag_metadata(tag_name):
             """Get detailed metadata for a specific tag."""
             if tag_name not in self.tag_cache:
@@ -793,7 +793,7 @@ class RESTAPIPublisher(DataPublisher):
                 'count': len(types)
             })
         
-        @self.app.route('/api/tags/<tag_name>', methods=['POST', 'PUT'])
+        @self.app.route('/api/tags/<path:tag_name>', methods=['POST', 'PUT'])
         def write_tag(tag_name):
             """Write a value to a tag."""
             try:
@@ -922,7 +922,7 @@ class RESTAPIPublisher(DataPublisher):
                 self.logger.error(f"Error creating tag: {e}")
                 return jsonify({"error": str(e)}), 500
 
-        @self.app.route('/api/tags/<tag_name>', methods=['DELETE'])
+        @self.app.route('/api/tags/<path:tag_name>', methods=['DELETE'])
         def delete_tag(tag_name):
             """Delete a tag from the OPC UA address space and local caches."""
             try:
