@@ -55,7 +55,7 @@ annotations:
   catalog.cattle.io/featured: "true"
 
   # Documentation links
-  catalog.cattle.io/upstream-version: "4.4.26"
+  catalog.cattle.io/upstream-version: "4.4.27"
   fireball.industries/project-type: "industrial-iot-gateway"
   fireball.industries/protocols: "15"
   fireball.industries/web-ui: "true"
