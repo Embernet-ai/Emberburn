@@ -10,8 +10,8 @@ description: |
   persistence, and a beautiful Python Flask web UI for configuration and monitoring.
 
 type: application
-version: 4.4.22
-appVersion: "4.4.22"
+version: 4.4.23
+appVersion: "4.4.23"
 
 keywords:
   - opcua
@@ -55,7 +55,7 @@ annotations:
   catalog.cattle.io/featured: "true"
 
   # Documentation links
-  catalog.cattle.io/upstream-version: "4.4.22"
+  catalog.cattle.io/upstream-version: "4.4.23"
   fireball.industries/project-type: "industrial-iot-gateway"
   fireball.industries/protocols: "15"
   fireball.industries/web-ui: "true"
