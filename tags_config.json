@@ -77,5 +77,60 @@
     "initial_value": false,
     "simulate": true,
     "description": "Random alarm state"
+  },
+  "cpu_util_pct": {
+    "type": "float",
+    "initial_value": 24.0,
+    "simulate": true,
+    "simulation_type": "sine",
+    "amplitude": 10.0,
+    "offset": 24.0,
+    "period": 90,
+    "description": "CPU utilization percent"
+  },
+  "mem_util_pct": {
+    "type": "float",
+    "initial_value": 48.0,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 40.0,
+    "max": 60.0,
+    "description": "Memory utilization percent"
+  },
+  "disk_util_pct": {
+    "type": "float",
+    "initial_value": 27.0,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 26.0,
+    "max": 33.0,
+    "description": "Disk utilization percent"
+  },
+  "rtos_jitter_core1_us": {
+    "type": "float",
+    "initial_value": 1.0,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 1.0,
+    "max": 36.0,
+    "description": "EmberRTOS core1 (T0) wake-up jitter, microseconds (whitepaper §5.6 ceiling 36us)"
+  },
+  "rtos_jitter_core2_us": {
+    "type": "float",
+    "initial_value": 1.0,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 1.0,
+    "max": 42.0,
+    "description": "EmberRTOS core2 (T1) wake-up jitter, microseconds (whitepaper §5.6 ceiling 42us)"
+  },
+  "rtos_jitter_core3_us": {
+    "type": "float",
+    "initial_value": 1.0,
+    "simulate": true,
+    "simulation_type": "random",
+    "min": 1.0,
+    "max": 31.0,
+    "description": "EmberRTOS core3 (T2) wake-up jitter, microseconds (whitepaper §5.6 ceiling 31us)"
   }
 }
