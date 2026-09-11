@@ -648,6 +648,21 @@ class OPCUAServer:
                     "runtime": True,
                 }
 
+                # New tag, not a redefine: if it carries a `backfill` block,
+                # seed its history now rather than let it start flat at
+                # initial_value and grow live — the same treatment a
+                # config-loaded tag gets at startup (backfill_tag_history),
+                # just triggered by definition time instead of process start.
+                if definition.get("backfill") and definition.get("simulate"):
+                    sqlite_pub = self._get_sqlite_history_publisher()
+                    if sqlite_pub is not None:
+                        self._backfill_one_tag(tag_name, self.tags[tag_name], sqlite_pub)
+                    else:
+                        self.logger.info(
+                            f"{tag_name}: backfill requested but no SQLite tag-history "
+                            f"publisher configured — starting flat"
+                        )
+
             self.tag_metadata[tag_name] = {
                 "type": tag_type,
                 "description": definition.get("description", ""),
@@ -867,105 +882,128 @@ class OPCUAServer:
             except Exception as e:
                 self.logger.error(f"Error updating tag {tag_name}: {e}")
 
-    def backfill_tag_history(self):
+    def _get_sqlite_history_publisher(self):
         """
-        Retroactively seed history for every tag carrying a `backfill` block,
-        so a chart opened the instant this process starts already has a full
-        window of history instead of growing flat-lined from zero.
+        Find the SQLitePersistencePublisher with tag history enabled, or None.
+
+        Shared by `backfill_tag_history` (startup, all tags) and
+        `_backfill_one_tag`'s callers (a single tag defined after startup via
+        the REST API) so both paths agree on what "no durable place to put
+        backfilled rows" means.
+        """
+        if not self.publisher_manager:
+            return None
+        for pub in self.publisher_manager.publishers:
+            if pub.__class__.__name__ == "SQLitePersistencePublisher":
+                if getattr(pub, "enable_tag_history", False):
+                    return pub
+                return None
+        return None
+
+    def _backfill_one_tag(self, tag_name, tag_data, sqlite_pub, real_now=None):
+        """
+        Retroactively seed history for one tag carrying a `backfill` block.
 
         Anchor is the top of the CURRENT wall-clock even-hour boundary
         (10:00, 12:00, 14:00, ...) — not "window_minutes ago" — because the
         chart's own window is defined the same way (10:00-12:00, 12:00-14:00,
         ...), and anchoring to "now minus N minutes" would drift out of that
-        boundary by however many minutes past the hour the process happened
-        to start.
+        boundary by however many minutes past the hour backfill happened to
+        run.
 
         Replays `_compute_sim_value` tick-by-tick from the anchor up to
-        (not including) the real start time, at `sample_interval_seconds`,
-        so each tag's `sim` state (walk position, burst timers, step levels)
-        evolves exactly as it would have live — the last backfilled sample
-        and the first live sample are continuous, not a seam. The live OPC UA
+        (not including) `real_now`, at `sample_interval_seconds`, so the
+        tag's `sim` state (walk position, burst timers, step levels) evolves
+        exactly as it would have live — the last backfilled sample and the
+        first live sample are continuous, not a seam. The live OPC UA
         variable is left set to that last backfilled value for the same
         reason.
 
-        Requires a SQLitePersistencePublisher in publisher_manager.publishers
-        with tag history enabled — silently does nothing without one, since
-        there is nowhere durable to put backfilled rows (writing them only to
-        the live OPC UA variable would have live ticking immediately overwrite
-        them, defeating the point).
+        Used both at server startup (every config-loaded tag) and the moment
+        a tag is defined at runtime via the REST API — a tag created through
+        `POST /api/tags/create` or `/bulk` an hour into the window is exactly
+        the case this exists for: it needs the same retroactive history a
+        config-loaded tag gets, not a flat line from the moment it was
+        created.
         """
-        if not self.publisher_manager:
+        config = tag_data["config"]
+        backfill_cfg = config.get("backfill")
+        if not backfill_cfg or not config.get("simulate", False) or sqlite_pub is None:
             return
 
-        sqlite_pub = None
-        for pub in self.publisher_manager.publishers:
-            if pub.__class__.__name__ == "SQLitePersistencePublisher":
-                sqlite_pub = pub
-                break
-        if sqlite_pub is None or not getattr(sqlite_pub, "enable_tag_history", False):
+        if real_now is None:
+            real_now = time.time()
+
+        window_minutes = float(backfill_cfg.get("window_minutes", 120))
+        interval = float(backfill_cfg.get("sample_interval_seconds", 10))
+        if interval <= 0:
+            self.logger.warning(f"{tag_name}: backfill.sample_interval_seconds must be > 0 — skipping")
+            return
+
+        # Top of the current even-hour boundary, e.g. 11:47 -> 10:00 same day.
+        now_struct = time.localtime(real_now)
+        even_hour = now_struct.tm_hour - (now_struct.tm_hour % 2)
+        anchor = time.mktime((now_struct.tm_year, now_struct.tm_mon, now_struct.tm_mday,
+                               even_hour, 0, 0, 0, 0, now_struct.tm_isdst))
+
+        # window_minutes is informational/config-validation here — the
+        # anchor is ALWAYS the even-hour boundary, per spec, not
+        # `real_now - window_minutes`. Warn rather than silently diverge
+        # if someone configures a window that doesn't match a 2-hour block.
+        if abs(window_minutes - 120.0) > 0.01:
+            self.logger.warning(
+                f"{tag_name}: backfill.window_minutes={window_minutes} but the anchor is always "
+                f"the even-hour boundary (a 120-minute block) — the configured window is ignored "
+                f"for anchor calculation, only used below to sanity-check sample count."
+            )
+
+        sim_type = config.get("simulation_type", "random")
+        tag_type = tag_data["type"]
+        var = tag_data["variable"]
+
+        try:
+            current_value = var.get_value()
+        except Exception:
+            current_value = config.get("initial_value", 0)
+
+        rows = []
+        t = anchor
+        n_samples = 0
+        while t < real_now:
+            new_value = self._compute_sim_value(
+                sim_type, tag_name, tag_data, current_value, config, tag_type, t
+            )
+            if new_value is not None:
+                current_value = new_value
+            rows.append((tag_name, current_value, tag_type, datetime.fromtimestamp(t).isoformat()))
+            n_samples += 1
+            t += interval
+
+        if rows:
+            var.set_value(current_value)
+            sqlite_pub.seed_history(rows)
+            self.logger.info(
+                f"{tag_name}: backfilled {n_samples} samples from "
+                f"{datetime.fromtimestamp(anchor).isoformat()} to now (every {interval}s)"
+            )
+
+    def backfill_tag_history(self):
+        """
+        Retroactively seed history for every config-loaded tag carrying a
+        `backfill` block, so a chart opened the instant this process starts
+        already has a full window of history instead of growing flat-lined
+        from zero. See `_backfill_one_tag` for the per-tag mechanics; a tag
+        defined later via the REST API is backfilled by `define_tag` calling
+        `_backfill_one_tag` directly, not by this method.
+        """
+        sqlite_pub = self._get_sqlite_history_publisher()
+        if sqlite_pub is None:
             self.logger.info("backfill_tag_history: no SQLite tag-history publisher configured — skipping")
             return
 
         real_now = time.time()
-
         for tag_name, tag_data in self.tags.items():
-            config = tag_data["config"]
-            backfill_cfg = config.get("backfill")
-            if not backfill_cfg or not config.get("simulate", False):
-                continue
-
-            window_minutes = float(backfill_cfg.get("window_minutes", 120))
-            interval = float(backfill_cfg.get("sample_interval_seconds", 10))
-            if interval <= 0:
-                self.logger.warning(f"{tag_name}: backfill.sample_interval_seconds must be > 0 — skipping")
-                continue
-
-            # Top of the current even-hour boundary, e.g. 11:47 -> 10:00 same day.
-            now_struct = time.localtime(real_now)
-            even_hour = now_struct.tm_hour - (now_struct.tm_hour % 2)
-            anchor = time.mktime((now_struct.tm_year, now_struct.tm_mon, now_struct.tm_mday,
-                                   even_hour, 0, 0, 0, 0, now_struct.tm_isdst))
-
-            # window_minutes is informational/config-validation here — the
-            # anchor is ALWAYS the even-hour boundary, per spec, not
-            # `real_now - window_minutes`. Warn rather than silently diverge
-            # if someone configures a window that doesn't match a 2-hour block.
-            if abs(window_minutes - 120.0) > 0.01:
-                self.logger.warning(
-                    f"{tag_name}: backfill.window_minutes={window_minutes} but the anchor is always "
-                    f"the even-hour boundary (a 120-minute block) — the configured window is ignored "
-                    f"for anchor calculation, only used below to sanity-check sample count."
-                )
-
-            sim_type = config.get("simulation_type", "random")
-            tag_type = tag_data["type"]
-            var = tag_data["variable"]
-
-            try:
-                current_value = var.get_value()
-            except Exception:
-                current_value = config.get("initial_value", 0)
-
-            rows = []
-            t = anchor
-            n_samples = 0
-            while t < real_now:
-                new_value = self._compute_sim_value(
-                    sim_type, tag_name, tag_data, current_value, config, tag_type, t
-                )
-                if new_value is not None:
-                    current_value = new_value
-                rows.append((tag_name, current_value, tag_type, datetime.fromtimestamp(t).isoformat()))
-                n_samples += 1
-                t += interval
-
-            if rows:
-                var.set_value(current_value)
-                sqlite_pub.seed_history(rows)
-                self.logger.info(
-                    f"{tag_name}: backfilled {n_samples} samples from "
-                    f"{datetime.fromtimestamp(anchor).isoformat()} to now (every {interval}s)"
-                )
+            self._backfill_one_tag(tag_name, tag_data, sqlite_pub, real_now=real_now)
 
     def generate_random_value(self, config, tag_type):
         """
