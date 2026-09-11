@@ -3,6 +3,30 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.23 — 2026-09-11
+
+Three new simulation types landed for tag families that `sine`/`random`/`walk`
+can't honestly produce: `bursty_walk` (a bounded walk with periodic excursions
+into a higher band — CPU that idles then takes on real work), `stepped` (holds,
+steps, holds — memory pressure moving in discrete jumps, not continuous jitter),
+and `spike_floor` (a near-constant floor with an occasional tick and a rare,
+never-sustained spike to a hard ceiling — RTOS scheduling jitter against a
+benchmarked bound).
+
+Tags with a `backfill` config block now seed their full history window
+retroactively at server startup, anchored to the top of the current even
+wall-clock hour, by replaying the same simulation math used for live ticks
+through a new shared `_compute_sim_value` method. A new
+`GET /api/tags/<tag_name>/history` route reads that history back out.
+
+Also fixed: `SQLitePersistencePublisher.publish()` had a different parameter
+signature than every other publisher's `publish(tag_name, value, timestamp)`
+contract, so `PublisherManager.publish_to_all()` was silently passing the
+live tick's timestamp into the `data_type` slot on every write. History rows
+recorded `data_type` values like `"1789106565.28429"` instead of `"float"`.
+Fixed to match the shared contract; verified by reading rows back before and
+after.
+
 ## v4.4.22 — 2026-08-24
 
 The metrics Service pointed at a port nothing binds — and had since it was
