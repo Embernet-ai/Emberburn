@@ -5,6 +5,25 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.25] - 2026-09-11: A Tag Created Through The API Never Got Its Backfill
+
+### Fixed
+
+- **`backfill_tag_history()` only ran once, at process start, over tags
+  loaded from a config file.** A tag defined afterward through
+  `POST /api/tags/create` or `/api/tags/bulk` — the actual supported way to
+  add tags per this project's own README — carrying a `backfill` block got
+  none of it: it started flat at `initial_value` and grew live from zero,
+  the exact thing backfill exists to avoid. Extracted the per-tag mechanics
+  into `_backfill_one_tag`, shared by `backfill_tag_history` (all
+  config-loaded tags at startup, unchanged behavior) and `define_tag` (a
+  single newly-created tag, backfilled the moment it's defined — not on
+  redefinition of an existing tag, which already has whatever history it
+  has). Verified locally: a tag created live via `/api/tags/bulk` came back
+  from `/api/tags/<tag_name>/history` with a full even-hour-anchored window
+  already populated, continuous into the first live tick, no restart
+  required.
+
 ## [4.4.24] - 2026-09-11: Tag Names With Slashes Were Never Addressable
 
 ### Fixed
