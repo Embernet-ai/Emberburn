@@ -3,6 +3,23 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.24 — 2026-09-11
+
+All five single-tag REST routes used Flask's default string URL converter,
+which cannot match a literal `/` in a path segment — and Werkzeug decodes a
+`%2F` back into `/` before routing, so encoding the slash in the request
+doesn't route around it either. Every tag using this project's own
+`/`-delimited naming convention (`HVAC/AHU_01/FilterDiffPressure`,
+`PLC_PRG/Alta_Temp`) was unreachable by name via the API — 404 on read,
+write, history, and delete alike.
+
+Switched `GET`/`POST`/`PUT`/`DELETE /api/tags/<tag_name>` and the `/history`
+and `/metadata` variants to Flask's `<path:tag_name>` converter. Verified
+against a live Flask test client that slash-delimited names resolve on all
+five routes and that the static sibling routes (`/discovery`, `/create`,
+`/bulk`, `/categories`, `/types`, `/export`) still take routing priority
+over the new path converter.
+
 ## v4.4.23 — 2026-09-11
 
 Three new simulation types landed for tag families that `sine`/`random`/`walk`
