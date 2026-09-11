@@ -5,6 +5,24 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.26] - 2026-09-11: A Deleted Tag Came Back On The Next Restart
+
+### Fixed
+
+- **`delete_tag()` only persisted a removal when the in-memory tag carried
+  `runtime: True`, and a tag reloaded from the runtime store at startup
+  never had that flag restored** — the reload path at server start built
+  every tag the same way regardless of origin, config-file or persisted
+  runtime store alike, with no `runtime` key set either way. So any tag
+  that had survived even one prior restart looked deleted (DELETE returned
+  200, a following GET 404'd) but was never actually removed from
+  `/app/data/tags.json`, and came back exactly as it was on the next
+  restart. Now the startup loader tracks which merged tags came from
+  `load_runtime_tags()` and marks them `runtime: True` again, so
+  `delete_tag`'s persistence guard sees the truth. Verified locally:
+  create tag, restart, still there; delete tag, restart again, actually
+  gone.
+
 ## [4.4.25] - 2026-09-11: A Tag Created Through The API Never Got Its Backfill
 
 ### Fixed

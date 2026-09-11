@@ -422,8 +422,9 @@ class OPCUAServer:
 
         # Load tag configuration. Tags authored at runtime are layered on top,
         # so a tag created through the API or the web UI outlives the pod.
+        runtime_tags = self.load_runtime_tags()
         tag_config = dict(self.load_tag_config())
-        tag_config.update(self.load_runtime_tags())
+        tag_config.update(runtime_tags)
 
         # Create tags based on config
         for tag_name, tag_info in tag_config.items():
@@ -439,11 +440,23 @@ class OPCUAServer:
                 var = myobj.add_variable(self.node_id_for(tag_name), tag_name, initial_value)
                 var.set_writable()
 
-                # Store tag information
+                # Store tag information. `runtime` must be restored here for
+                # any tag that came from the persisted runtime store — it is
+                # what `delete_tag` checks before persisting a removal
+                # (save_runtime_tags only re-serializes tags flagged runtime).
+                # Without this, a tag deleted after any restart looks deleted
+                # (removed from the live address space, DELETE returns 200,
+                # a GET 404s) but silently comes back on the next restart,
+                # because the deletion was never written to
+                # /app/data/tags.json in the first place. A tag loaded only
+                # from the config file stays non-runtime on purpose: deleting
+                # it needs a config change, not a persisted tombstone this
+                # store has no way to represent.
                 self.tags[tag_name] = {
                     "variable": var,
                     "config": tag_info,
-                    "type": tag_type
+                    "type": tag_type,
+                    "runtime": tag_name in runtime_tags,
                 }
 
                 # Store tag metadata for publishers
