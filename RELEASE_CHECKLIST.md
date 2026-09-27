@@ -45,17 +45,28 @@ Use this checklist every time you cut a new version. Copy/paste the raw markdown
 
 ## 3. Version Bump (replace `X.Y.Z` with new version)
 
-All four locations must have the **same** version string:
+Chart, image, and app have shared one number since 4.4.20, so all five fields
+carry the **same** version string. `release.yml` refuses to publish when
+`appVersion` and the image tag disagree, but it never looks at `version.py` or the
+upstream-version annotation, so those two are on you.
 
 | File | Field(s) | Example |
 |------|----------|---------|
-| `helm/opcua-server/Chart.yaml` | `version`, `appVersion`, `catalog.cattle.io/upstream-version` | `4.0.9` |
-| `helm/opcua-server/values.yaml` | `emberburn.image.tag` | `"4.0.9"` |
+| `helm/opcua-server/Chart.yaml` | `version`, `appVersion`, `catalog.cattle.io/upstream-version` | `4.4.28` |
+| `helm/opcua-server/values.yaml` | `emberburn.image.tag` | `"4.4.28"` |
+| `version.py` | `__version__` | `"4.4.28"` |
 
 - [ ] `Chart.yaml`, `version: X.Y.Z`
 - [ ] `Chart.yaml`, `appVersion: "X.Y.Z"`
 - [ ] `Chart.yaml`, `catalog.cattle.io/upstream-version: "X.Y.Z"`
 - [ ] `values.yaml`, `tag: "X.Y.Z"`
+- [ ] `version.py`, `__version__ = "X.Y.Z"`
+
+```bash
+grep -nE '^version:|^appVersion:|upstream-version' helm/opcua-server/Chart.yaml
+grep -nE '^\s+tag:' helm/opcua-server/values.yaml | head -1
+grep -n __version__ version.py
+```
 
 ---
 
@@ -104,6 +115,28 @@ as the Service; Service-only leaves node cards showing a generic glyph.
       It is an embedded data URI from `emberburn.appIcon`; regenerate with
       `python scripts/build-chart-icon.py`
 
+### 4g. Store card name and GUI port
+
+The EmberNET App Store prints `catalog.cattle.io/display-name` on the store card.
+Until 4.4.28 ours carried the product name plus a "Multi-Protocol IoT Gateway"
+tagline, which is a slogan wearing a name tag. It is the product name and nothing
+else.
+
+`embernet.ai/gui-port` is where the dashboard sends "OPEN". It follows
+`service.webui.port`, the Service forwards to `service.webui.targetPort`, and the
+container listens on `emberburn.ports.webui`. All three are 5000 by default; change
+one without the others and the label points at nothing, and nothing fails until
+somebody clicks the button.
+
+```bash
+grep -n 'display-name' helm/opcua-server/Chart.yaml   # expect "EmberBurn"
+helm template t helm/opcua-server | grep -nE 'gui-port|containerPort: 5000|port: 5000|targetPort: 5000'
+```
+
+- [ ] `catalog.cattle.io/display-name: "EmberBurn"`
+- [ ] `gui-port` equals the webui Service port, and the Service's targetPort is a
+      port the container actually declares
+
 ### 4b. Network Configuration
 
 - [ ] `values.yaml` has `network.hostNetwork: false` (dashboard proxy requires ClusterIP networking)
@@ -143,16 +176,28 @@ All must pass before committing:
 ## 6. Helm Chart Packaging (Automated)
 
 > **As of v4.0.9:** The `release.yml` GitHub Actions workflow automatically
-> runs `helm package` and `helm repo index` whenever `helm/**` files change
-> on `main`. You no longer need to manually package or update `index.yaml`.
-> The pipeline chain is: `release.yml` → commits `.tgz` + `index.yaml` → triggers `pages.yml` → deploys to GitHub Pages → Rancher picks up the update.
+> runs `helm package` and `helm repo index --merge` whenever `helm/**` files
+> change on `main`. You do not package or touch `index.yaml` by hand.
+>
+> The chain is: `release.yml` commits the `.tgz` and `index.yaml` to `main` as
+> `github-actions[bot]`, and GitHub Pages serves `main` straight from the repo
+> root (legacy branch build), so the `pages-build-deployment` run that fires on
+> that commit is what puts it online. `pages.yml` does **not** run for it. The bot
+> pushes with `GITHUB_TOKEN`, and GitHub does not start workflows from events that
+> token creates, so `pages.yml` only fires when a human pushes an index or `.tgz`
+> change. That is how 4.4.28 went out: `pages-build-deployment` on `5c3b8c3`, no
+> `pages.yml` run at all, and the index was correct anyway.
 
 Manual fallback (only if CI is broken):
 
-- [ ] **Delete old `.tgz`**, `Remove-Item emberburn-*.tgz`
-- [ ] **Package**, `helm package helm/opcua-server` (run from repo root)
-- [ ] **Regenerate index**, `helm repo index . --url https://embernet-ai.github.io/Emberburn/`
-- [ ] **Verify `index.yaml`**, `version:` and `urls:` reference the new `.tgz`
+- [ ] **Do not delete the old `.tgz` files.** This step used to say
+      `Remove-Item emberburn-*.tgz`, and deleting every package before indexing
+      is exactly what cut `index.yaml` down to one entry per release (the long
+      comment in `release.yml` step 5 has the whole story). The repo is a catalog.
+- [ ] **Package**, `helm package helm/opcua-server -d .` (run from repo root)
+- [ ] **Merge into the index**, `helm repo index . --url https://embernet-ai.github.io/Emberburn/ --merge index.yaml`
+- [ ] **Verify `index.yaml`**, the new `version:` and `urls:` are there **and**
+      every older version is still listed
 
 ---
 
@@ -218,12 +263,19 @@ git checkout main && git merge --ff-only release/vX.Y.Z && git push origin main
 ## 9. Post-Push Verification
 
 - [ ] **GitHub Actions (Docker)**: check Actions tab, `docker-publish.yml` triggered on `vX.Y.Z` tag
-- [ ] **GitHub Actions (Pages)**: check Actions tab, `pages.yml` triggered on `index.yaml` change
+- [ ] **GitHub Actions (Chart)**: `release.yml` (Package & Publish Helm Chart) passed on
+      the merge, and its `ci: publish emberburn-X.Y.Z helm chart` commit landed on `main`
+- [ ] **GitHub Pages**: `pages-build-deployment` succeeded on that bot commit (see §6
+      for why it is not `pages.yml`), and the live index actually has the version:
+      ```bash
+      gh run list -R Embernet-ai/Emberburn --limit 5
+      curl -s https://embernet-ai.github.io/Emberburn/index.yaml | grep -n "emberburn-X.Y.Z.tgz"
+      ```
 - [ ] **Image pull**, `docker pull ghcr.io/embernet-ai/emberburn:X.Y.Z` succeeds (no 403)
 - [ ] **GitHub Release**: create one on `Embernet-ai/Emberburn` for tag `vX.Y.Z`:
       ```bash
       gh release create vX.Y.Z -R Embernet-ai/Emberburn \
-        --title "vX.Y.Z — <short description>" --notes-file <(...)
+        --title "vX.Y.Z: <short description>" --notes-file <(...)
       ```
       Not optional. This was marked "if desired" and consequently skipped for every
       release between v4.0.7 and v4.1.10, leaving the Releases page eight versions
@@ -237,7 +289,9 @@ git checkout main && git merge --ff-only release/vX.Y.Z && git push origin main
 - [ ] **Web UI loads**: All pages (Dashboard, Tags, Publishers, Alarms, Config, Tag Generator) load
 - [ ] **API endpoints work**, `/api/tags`, `/api/publishers` return data through proxy
 - [ ] **OPC UA working**: Port 4840 accessible from other pods
-- [ ] **Prometheus metrics**: Port 8000 `/metrics` endpoint returning data
+- [ ] **Prometheus metrics**: `<release>-metrics` Service on 8000 returns `/metrics`.
+      That is a Service port only; it forwards to the Flask app on 5000, and
+      nothing in the pod listens on 8000, so test it through the Service
 
 ---
 
