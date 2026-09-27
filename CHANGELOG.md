@@ -5,6 +5,27 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.28] - 2026-09-27: The App Store Card Says What This Is
+
+### Changed
+
+- **The chart's store listing.** The EmberNET App Store prints
+  `catalog.cattle.io/display-name` on the card, and ours read
+  "EmberBurn - Multi-Protocol IoT Gateway". It is now just `EmberBurn`.
+- **The chart description stops claiming fifteen protocols.** Twelve are
+  protocols. Alarms, SQLite persistence, and data transformation are
+  features, and the description now says so, along with what this actually
+  is: an OPC UA server that simulates factory tags and publishes them. The
+  `fireball.industries/protocols` annotation says 12 to match.
+
+### Fixed
+
+- **`NOTES.txt` printed the wrong icon.** It showed a GitHub avatar URL as
+  the app icon when the chart has shipped an embedded data URI since 4.1.9.
+
+No application code changed. The version moves with the chart because
+chart, image, and `version.py` share one number (4.4.20).
+
 ## [4.4.27] - 2026-09-11: InfluxDB Points Had No Way To Say Which Device Sent Them
 
 ### Added

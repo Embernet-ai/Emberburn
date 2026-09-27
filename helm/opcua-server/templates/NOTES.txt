@@ -159,7 +159,7 @@
     GUI Type:     {{ .Values.gui.type | default "web" }}
     GUI Port:     {{ .Values.gui.port | default .Values.service.webui.port }}
     App Name:     {{ .Values.embernet.appName | default "EmberBurn" }}
-    App Icon:     {{ .Values.embernet.appIcon | default "https://avatars.githubusercontent.com/u/254966106?s=200&v=4" }}
+    App Icon:     {{ .Values.embernet.appIcon | default "embedded EmberBurn logo (data URI)" }}
   {{- if .Values.embernet.displayName }}
     Display Name: {{ .Values.embernet.displayName }}
   {{- end }}

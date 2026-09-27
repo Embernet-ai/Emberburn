@@ -1,17 +1,17 @@
 apiVersion: v2
 name: emberburn
 description: |
-  OPC UA Industrial IoT Gateway with 15 protocol support and fire-themed web UI.
-  Because your industrial data deserves to be as hot as your infrastructure.
+  OPC UA server that simulates factory tags and publishes them over twelve
+  protocols, with a web UI for creating and watching tags.
 
-  EmberBurn is a multi-protocol industrial IoT gateway featuring OPC UA server,
-  MQTT, REST API, GraphQL, Sparkplug B, Kafka, AMQP, WebSocket, Modbus TCP,
-  Prometheus metrics, InfluxDB integration, alarms, data transformation, SQLite
-  persistence, and a beautiful Python Flask web UI for configuration and monitoring.
+  EmberBurn serves OPC UA and pushes the same data out over MQTT, Sparkplug B,
+  Kafka, AMQP, WebSocket, Modbus TCP, InfluxDB, GraphQL, a REST API, an OPC UA
+  client, and a Prometheus endpoint. Alarms, SQLite persistence, and data
+  transformation ride on top of those.
 
 type: application
-version: 4.4.27
-appVersion: "4.4.27"
+version: 4.4.28
+appVersion: "4.4.28"
 
 keywords:
   - opcua
@@ -45,7 +45,9 @@ icon: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABcCAYAAACmwr2fAAAYzUlE
 annotations:
   catalog.cattle.io/certified: "fireball"
   catalog.cattle.io/release-name: "emberburn"
-  catalog.cattle.io/display-name: "EmberBurn - Multi-Protocol IoT Gateway"
+  # The EmberNET App Store prints this on the card, so it is the product name
+  # and nothing else.
+  catalog.cattle.io/display-name: "EmberBurn"
   catalog.cattle.io/provides-gvr: "apps/v1/Deployment"
 
   # UI Categories
@@ -55,8 +57,8 @@ annotations:
   catalog.cattle.io/featured: "true"
 
   # Documentation links
-  catalog.cattle.io/upstream-version: "4.4.27"
+  catalog.cattle.io/upstream-version: "4.4.28"
   fireball.industries/project-type: "industrial-iot-gateway"
-  fireball.industries/protocols: "15"
+  fireball.industries/protocols: "12"
   fireball.industries/web-ui: "true"
   fireball.industries/branding: "emberburn"

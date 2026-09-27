@@ -3,6 +3,28 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.27, 2026-09-11
+
+InfluxDB points carried a single tag named `tag`, so two EmberBurn instances
+writing to one bucket were indistinguishable, and the dashboard's task metrics
+query, which filters on `tag_name`, never matched anything. Every point now
+also carries `tag_name`, `device_id`, and `protocol`. `device_id` comes from
+config, then `EMBERBURN_DEVICE_ID`, then the pod hostname, so one instance per
+device gets a distinct identity with no extra setup. `tag` is still written,
+so existing queries keep working.
+
+Also adds six EmberRTOS Task Manager tags: CPU, memory, and disk utilization,
+plus per core jitter bounded to the EmberRTOS whitepaper ceilings.
+
+## v4.4.26, 2026-09-11
+
+Deleting a tag that had survived a restart did not stick. The startup loader
+rebuilt every tag without its `runtime` flag, and `delete_tag` only persists a
+removal for runtime tags, so the API answered 200, the next GET answered 404,
+and the tag came back on the next restart. The loader now marks tags from the
+runtime store as runtime again. Verified: create, restart, delete, restart,
+and it stays gone.
+
 ## v4.4.25 — 2026-09-11
 
 `backfill_tag_history()` only ran once, at process start, over tags loaded
