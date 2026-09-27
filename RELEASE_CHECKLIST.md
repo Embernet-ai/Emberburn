@@ -174,9 +174,12 @@ Manual fallback (only if CI is broken):
 
 ## 8. Commit, Tag, Push
 
-> **Check `git remote -v` first.** The remote *names* differ between clones. This
-> clone has `origin` = the org repo and `upstream` = the personal fork, which is the
-> reverse of what this section used to say. Go by the URL, not the name.
+> **There is one remote.** `origin` is `https://github.com/Embernet-ai/Emberburn.git`
+> and nothing else gets pushed. The personal copy this used to sync to,
+> `patrickryan01/Small-Application`, drifted by rewritten history until it could
+> only be synced with a force push, so as of 2026-09-27 it is private and archived
+> and Emberburn stands alone. If a clone still has an `upstream` remote, remove it
+> (`git remote remove upstream`).
 
 **Order matters, and it is not the order this section used to give.** The tag must
 be pushed and the image must finish building *before* the chart bump reaches `main`,
@@ -203,16 +206,12 @@ docker manifest inspect ghcr.io/embernet-ai/emberburn:X.Y.Z
 
 # 4. only now merge to main — this triggers the chart publish
 git checkout main && git merge --ff-only release/vX.Y.Z && git push origin main
-
-# 5. sync the personal fork
-git push upstream main --tags
 ```
 
 - [ ] Committed on a `release/vX.Y.Z` branch
 - [ ] Tagged `vX.Y.Z` and pushed the tag
 - [ ] **Image build finished and image confirmed present in GHCR**
 - [ ] Merged to `main` on the **org** repo (`Embernet-ai/Emberburn`)
-- [ ] Pushed to the **personal fork** (`patrickryan01/Small-Application`)
 
 ---
 
@@ -244,15 +243,15 @@ git push upstream main --tags
 
 ## Quick Reference: Git Remotes
 
-Names vary by clone, **always confirm with `git remote -v`**. In this working copy:
-
 | Remote | URL | Purpose |
 |--------|-----|---------|
-| `origin` | `https://github.com/Embernet-ai/Emberburn.git` | Org repo. CI runs here |
-| `upstream` | `https://github.com/patrickryan01/Small-Application.git` | Personal fork |
+| `origin` | `https://github.com/Embernet-ai/Emberburn.git` | The repo. CI runs here |
 
-Older clones have these two names swapped, which is how the fork silently drifted
-17 commits behind between v4.0.8 and v4.1.10.
+There used to be a second remote for the personal copy,
+`patrickryan01/Small-Application`. Clones had the two names swapped, which is how
+that copy silently drifted 17 commits behind between v4.0.8 and v4.1.10, and later
+its history was rewritten until it could not be synced without a force push. It is
+private and archived now; nothing syncs to it.
 
 ---
 
