@@ -1,0 +1,89 @@
+name: App Invariants
+
+# Enforces embernet-iac templates/app/README.md against this repo's charts.
+#
+# Every rule corresponds to an outage, and every one is SILENT: the workload
+# comes up, reports healthy, passes a TCP connect, and moves no traffic.
+#
+# THE CHECKER IS VENDORED under .ci/, deliberately. The canonical copy lives in
+# embernet-iac templates/app/, which is private, so a cross-repo checkout needs
+# a token most of these repos do not have. The drift that vendoring risks is
+# mitigated rather than ignored: the checker's own 32-case regression suite is
+# vendored beside it and runs FIRST, so a copy that has rotted into uselessness
+# fails its own tests instead of reporting a confident green.
+#
+# To refresh: copy both files from embernet-iac templates/app/.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  app-invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: azure/setup-helm@v4
+        with: { version: v3.16.2 }
+
+      # FIRST. A result measured with an unverified checker is worth nothing.
+      - name: Prove the checker works before trusting it
+        run: python3 .ci/test-check-app-invariants.py
+
+      # Rendered manifests are the ONLY place the RWO/Recreate rule is
+      # decidable: the volume and the strategy live in one object there.
+      # Charts sit in different places per repo, so find them rather than
+      # assuming charts/.
+      - name: Render charts
+        run: |
+          set -euo pipefail
+          mkdir -p .rendered
+          while IFS= read -r cy; do
+            c=$(dirname "$cy")
+            case "$c" in */charts/*) continue ;; esac
+            n=$(basename "$c")
+            helm template ci "$c" > ".rendered/$n.yaml" 2>/dev/null               || { echo "note: $n did not render with bare defaults"; rm -f ".rendered/$n.yaml"; }
+          done < <(find . -maxdepth 3 -name Chart.yaml -not -path './.git/*')
+          echo "rendered:"; ls .rendered/ 2>/dev/null || echo "  (none)"
+
+      - name: Check app invariants
+        run: |
+          set -euo pipefail
+          TARGETS=""
+          for d in charts chart; do [ -d "$d" ] && TARGETS="$TARGETS $d"; done
+          # Only pass .rendered if something rendered. The checker refuses a
+          # NAMED path that matched zero files -- correctly, since a silently
+          # empty scan is the failure it exists to prevent -- so handing it an
+          # empty dir would fail every repo whose charts need values to render.
+          if [ -n "$(ls -A .rendered 2>/dev/null)" ]; then TARGETS="$TARGETS .rendered"; fi
+          # Fall back to the whole repo. Not every repo has charts: Fragua-Demo
+          # holds the Ziti wiring SCRIPTS, and those .py files are where the
+          # intercept literals live -- the offender class this checker was
+          # written for. "No charts" must not mean "nothing to check".
+          [ -n "$TARGETS" ] || TARGETS="."
+          echo "scanning:$TARGETS"
+          python3 .ci/check-app-invariants.py $TARGETS
+
+      - name: Prove it still catches a violation
+        run: |
+          mkdir -p /tmp/canary
+          cat > /tmp/canary/canary.yaml <<'EOF'
+          apiVersion: apps/v1
+          kind: DaemonSet
+          metadata:
+            name: canary
+          spec:
+            template:
+              spec:
+                hostNetwork: true
+                dnsPolicy: Default
+          EOF
+          if python3 .ci/check-app-invariants.py /tmp/canary; then
+            echo "::error::the checker PASSED a known-bad manifest - it is not working"
+            exit 1
+          fi
+          echo "checker correctly rejected the canary"
