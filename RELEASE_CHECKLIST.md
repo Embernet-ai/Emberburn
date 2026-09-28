@@ -291,7 +291,9 @@ git checkout main && git merge --ff-only release/vX.Y.Z && git push origin main
 - [ ] **OPC UA working**: Port 4840 accessible from other pods
 - [ ] **Prometheus metrics**: `<release>-metrics` Service on 8000 returns `/metrics`.
       That is a Service port only; it forwards to the Flask app on 5000, and
-      nothing in the pod listens on 8000, so test it through the Service
+      nothing in the pod listens on 8000, so test it through the Service. The
+      pod's `prometheus.io/port` annotation says 5000 for the same reason (it said
+      8000 until 4.4.29, and every annotation scrape hit a closed port)
 
 ---
 

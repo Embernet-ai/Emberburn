@@ -124,13 +124,17 @@ helm template t helm/opcua-server \
 
 - [ ] All six pass
 
-### Known open item
-- [ ] **Pod scrape annotation points at a dead port.** `pod.annotations` sets
-      `prometheus.io/port: "8000"`, and annotation based scrapers go to the pod IP
-      on that port, where nothing listens (the app serves `/metrics` on 5000; a
-      4.4.28 container answers 200 on 5000 and refuses 8000). The `-metrics`
-      Service and the ServiceMonitor are fine because they go through the Service.
-      This box stays unchecked until a release fixes the annotation.
+### Pod scrape annotation
+- [ ] `pod.annotations` sets `prometheus.io/port: "5000"`. Annotation based
+      scrapers dial the pod IP on that port, and Flask serves `/metrics` there.
+      Through 4.4.28 it said 8000, where nothing in the pod listens (a 4.4.28
+      container answers 200 on 5000 and refuses 8000), so every annotation scrape
+      hit a closed port. 4.4.29 fixed it. 8000 is only ever a Service port.
+      ```bash
+      helm template t . | grep -n 'prometheus.io/port'   # expect "5000", twice
+      ```
+- [ ] With `networkPolicy.enabled=true`, the metrics ingress rule opens 5000, not
+      8000. A NetworkPolicy matches the pod port after the Service rewrote it.
 
 ---
 
