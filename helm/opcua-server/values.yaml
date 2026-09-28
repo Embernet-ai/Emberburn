@@ -464,10 +464,15 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 4840
-        # Prometheus metrics — service-prometheus.yaml/servicemonitor.yaml scrape
-        # this port. Without it, enabling networkPolicy silently breaks scraping.
+        # Prometheus metrics. A NetworkPolicy matches the port on the POD, after
+        # the Service has translated it, and /metrics lives on the web UI port.
+        # So both the <release>-metrics Service (8000 to 5000) and annotation
+        # scrapes land on 5000. This said 8000 through 4.4.28, a port nothing
+        # listens on, so turning the policy on would have cut Prometheus off.
+        # Heads up: metrics and the web UI share 5000, so this also opens the web
+        # UI to every namespace while the policy is on.
         - protocol: TCP
-          port: 8000
+          port: 5000
 
   egress:
     - {} # Allow all egress by default

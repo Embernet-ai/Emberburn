@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   200 on `:5000/metrics` and refuses `:8000`. The annotation now says `5000`.
   The `<release>-metrics` Service is unchanged: port 8000, forwarding to 5000,
   as it has since it was fixed.
+- **The optional NetworkPolicy allowed the wrong metrics port.** Its ingress
+  rule opened 8000, but a NetworkPolicy matches the pod port after the Service
+  translates it, and that is 5000. Turning `networkPolicy.enabled` on would have
+  cut Prometheus off. It opens 5000 now, which also means the web UI is
+  reachable from every namespace while the policy is on, since metrics share
+  that port. The policy is still off by default.
 - **The packaged chart README named an image that is not this one.** It
   pointed at `ghcr.io/fireball-industries/emberburn:latest`, the old
   `Small-Application` repo, and Service names the chart does not render
