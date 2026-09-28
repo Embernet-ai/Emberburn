@@ -10,8 +10,8 @@ description: |
   transformation ride on top of those.
 
 type: application
-version: 4.4.28
-appVersion: "4.4.28"
+version: 4.4.29
+appVersion: "4.4.29"
 
 keywords:
   - opcua
@@ -57,7 +57,7 @@ annotations:
   catalog.cattle.io/featured: "true"
 
   # Documentation links
-  catalog.cattle.io/upstream-version: "4.4.28"
+  catalog.cattle.io/upstream-version: "4.4.29"
   fireball.industries/project-type: "industrial-iot-gateway"
   fireball.industries/protocols: "12"
   fireball.industries/web-ui: "true"

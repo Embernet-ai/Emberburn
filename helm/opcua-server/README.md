@@ -16,7 +16,7 @@ helm install emberburn ./emberburn \
 
 - 🔥 **OPC UA Server** - Port 4840
 - 🌐 **Web UI + REST API** - Port 5000
-- 📊 **Prometheus Metrics** - Port 8000
+- 📊 **Prometheus Metrics** - `/metrics` on the web UI port (5000), also reachable through the `<release>-metrics` Service on 8000
 - 🔌 **MQTT Client** - Publish to any broker
 - 📡 **Modbus TCP** - Optional on port 5020
 - 💾 **SQLite Persistence** - Data stored in PVC
@@ -30,13 +30,12 @@ helm install emberburn ./emberburn \
 ```yaml
 emberburn:
   image:
-    repository: ghcr.io/fireball-industries/emberburn
-    tag: latest
+    repository: ghcr.io/embernet-ai/emberburn
+    # tag defaults to the chart's own version; chart and image ship as one number
   
   ports:
     opcua: 4840
-    webui: 5000
-    prometheus: 8000
+    webui: 5000   # web UI, REST API, and /metrics
 ```
 
 ### Connect to MQTT Broker
@@ -89,17 +88,20 @@ config:
 | Service | Type | Port | Purpose |
 |---------|------|------|---------|
 | `emberburn-opcua` | ClusterIP | 4840 | OPC UA clients |
-| `emberburn-webui` | LoadBalancer | 5000 | Web UI access |
-| `emberburn-prometheus` | ClusterIP | 8000 | Metrics scraping |
+| `emberburn` | ClusterIP | 5000 | Web UI and REST API |
+| `emberburn-metrics` | ClusterIP | 8000 → 5000 | Metrics scraping. Nothing listens on 8000 in the pod; the Service forwards to `/metrics` on 5000 |
+
+The pod also carries `prometheus.io/scrape`, `prometheus.io/port: "5000"` and
+`prometheus.io/path: /metrics`, so an annotation based Prometheus scrapes it
+with no extra config.
 
 ## Accessing the Web UI
 
 ```bash
-# Get LoadBalancer IP
-kubectl get svc -n emberburn emberburn-webui
+kubectl port-forward -n emberburn svc/emberburn 5000:5000
 
 # Open browser to:
-http://<EXTERNAL-IP>:5000
+http://localhost:5000
 ```
 
 ## Monitoring
@@ -158,16 +160,16 @@ See [DOCKER-BUILD-GUIDE.md](DOCKER-BUILD-GUIDE.md) for complete instructions.
 
 **Quick build:**
 
-1. Add Dockerfile to https://github.com/fireball-industries/Small-Application
-2. Push to GitHub
-3. GitHub Actions auto-builds to `ghcr.io/fireball-industries/emberburn:latest`
+1. The Dockerfile lives at the root of https://github.com/Embernet-ai/Emberburn
+2. Push a `vX.Y.Z` tag
+3. GitHub Actions builds amd64 and arm64 to `ghcr.io/embernet-ai/emberburn:X.Y.Z`
 
 ## Troubleshooting
 
 ### Image Pull Error
 
 Make GitHub package public:
-- Go to: https://github.com/orgs/fireball-industries/packages
+- Go to: https://github.com/orgs/Embernet-ai/packages
 - Settings → Change visibility → Public
 
 ### Check Logs
@@ -184,10 +186,10 @@ kubectl run -it --rm opcua-test --image=nicolaka/netshoot -- \
   curl emberburn-opcua.emberburn.svc.cluster.local:4840
 
 # Web UI
-curl http://<EXTERNAL-IP>:5000
+curl http://emberburn.emberburn.svc.cluster.local:5000
 
 # Metrics
-curl http://emberburn-prometheus.emberburn.svc.cluster.local:8000/metrics
+curl http://emberburn-metrics.emberburn.svc.cluster.local:8000/metrics
 ```
 
 ## Example Deployment
@@ -227,13 +229,13 @@ temperature := opcClient.ReadVariable('Temperature');
 ```json
 {
   "method": "GET",
-  "url": "http://emberburn-webui.emberburn.svc.cluster.local:5000/api/tags"
+  "url": "http://emberburn.emberburn.svc.cluster.local:5000/api/tags"
 }
 ```
 
 ### Grafana Dashboard (Prometheus)
 
-Add data source: `http://emberburn-prometheus.emberburn.svc.cluster.local:8000`
+Scrape `http://emberburn-metrics.emberburn.svc.cluster.local:8000/metrics` with Prometheus (or let it follow the pod annotations), then add that Prometheus as a Grafana data source. The metrics endpoint itself is not a Grafana data source.
 
 ## Embernet Dashboard Integration
 
@@ -307,10 +309,10 @@ nodeSelector:
 
 ## Links
 
-- **Python Repository:** https://github.com/fireball-industries/Small-Application
-- **Helm Charts:** https://github.com/fireball-industries/helm-charts
+- **Source (app, image, and chart):** https://github.com/Embernet-ai/Emberburn
+- **Helm Repository:** https://embernet-ai.github.io/Emberburn/
 - **Documentation:** https://fireballz.ai/docs/emberburn
-- **Container Image:** ghcr.io/fireball-industries/emberburn
+- **Container Image:** ghcr.io/embernet-ai/emberburn
 
 ---
 

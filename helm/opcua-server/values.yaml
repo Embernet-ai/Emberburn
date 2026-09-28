@@ -14,9 +14,15 @@ pod:
   # Ignored when autoscaling.enabled is true — the HPA owns the replica count.
   replicaCount: 1
 
+  # Annotation based scrapers (EmberNET Prometheus' kubernetes-pods job) go to
+  # the POD IP on prometheus.io/port. That has to be the web UI port: Flask
+  # serves /metrics there, and nothing in the image listens on 8000. This said
+  # 8000 through 4.4.28, so every annotation scrape was refused. 8000 is only
+  # the <release>-metrics Service port, which forwards to 5000 (see
+  # service.prometheus below).
   annotations:
     prometheus.io/scrape: "true"
-    prometheus.io/port: "8000"
+    prometheus.io/port: "5000"
     prometheus.io/path: "/metrics"
 
   labels: {}
@@ -30,7 +36,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.4.28"
+    tag: "4.4.29"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration

@@ -5,6 +5,28 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.29] - 2026-09-27: Prometheus Scrapes The Port That Has Metrics
+
+### Fixed
+
+- **The pod's scrape annotation pointed at nothing.** `prometheus.io/port`
+  said `8000`, and annotation based scrapers (EmberNET Prometheus'
+  `kubernetes-pods` job) dial the pod IP on that port. Nothing in the image
+  listens on 8000; Flask serves `/metrics` on 5000. A 4.4.28 container answers
+  200 on `:5000/metrics` and refuses `:8000`. The annotation now says `5000`.
+  The `<release>-metrics` Service is unchanged: port 8000, forwarding to 5000,
+  as it has since it was fixed.
+- **The packaged chart README named an image that is not this one.** It
+  pointed at `ghcr.io/fireball-industries/emberburn:latest`, the old
+  `Small-Application` repo, and Service names the chart does not render
+  (`emberburn-webui`, `emberburn-prometheus`). It now names
+  `ghcr.io/embernet-ai/emberburn`, the `Embernet-ai/Emberburn` repo and Helm
+  repository, and the real Services. `app-readme.md` stops telling people to
+  hit 8000 on an external IP.
+
+No application code changed. The version moves with the chart because chart,
+image, and `version.py` share one number.
+
 ## [4.4.28] - 2026-09-27: The App Store Card Says What This Is
 
 ### Changed

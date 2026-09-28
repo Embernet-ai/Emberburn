@@ -34,7 +34,7 @@ EmberBurn is a production-ready industrial IoT gateway that bridges legacy indus
 |------|---------|--------|
 | **4840** | OPC UA Server | OPC UA clients (UaExpert, Ignition, etc.) |
 | **5000** | Web UI + REST API | Browser, API clients |
-| **8000** | Prometheus Metrics | Prometheus scraper |
+| **8000** | Prometheus Metrics | `<release>-metrics` Service, forwards to `/metrics` on 5000 |
 
 ## 🏗️ Multi-Tenant Architecture
 
@@ -58,7 +58,7 @@ Each EmberBurn deployment includes:
 **Web UI**: Dashboard, tag monitoring, configuration, alarms  
 **REST API**: `/api/tags`, `/api/publishers`, `/api/alarms`  
 **OPC UA**: `opc.tcp://<external-ip>:4840/freeopcua/server/`  
-**Metrics**: `http://<external-ip>:8000/metrics`  
+**Metrics**: `http://<release>-metrics:8000/metrics` in cluster, or `/metrics` on the web UI port  
 
 ## 🎯 Common Use Cases
 

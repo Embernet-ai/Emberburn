@@ -3,6 +3,14 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.28, 2026-09-27
+
+The App Store card said "EmberBurn - Multi-Protocol IoT Gateway". It says
+EmberBurn now. The chart description stopped claiming fifteen protocols when
+three of them were features; it says twelve and describes what this is, an OPC
+UA server that simulates factory tags and publishes them. `NOTES.txt` stopped
+printing a GitHub avatar URL as the app icon. No application code changed.
+
 ## v4.4.27, 2026-09-11
 
 InfluxDB points carried a single tag named `tag`, so two EmberBurn instances
