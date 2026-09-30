@@ -129,6 +129,11 @@ def case_charts_dir_is_rendered(root):
     assert code == 0, out
     assert "app.yaml" in r, "charts/app was not rendered: %s" % out
     assert "values=defaults store=yes" in r["app.yaml"].splitlines()[0], r["app.yaml"][:200]
+    assert "visibility=user" in r["app.yaml"].splitlines()[0], r["app.yaml"][:200]
+    # A chart that says embernet.ai/visibility: infra gets it in the header.
+    write(root, {"charts/app/Chart.yaml": STORE_CHART + "  embernet.ai/visibility: infra\n"})
+    render(root)
+    assert "visibility=infra" in rendered(root)["app.yaml"].splitlines()[0], rendered(root)["app.yaml"][:200]
 
 
 def case_vendored_subchart_skipped_archive_still_rendered(root):

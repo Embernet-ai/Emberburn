@@ -458,7 +458,14 @@ def _check_rendered(path, text):
 
     # Only when the render HAS pods. An archived chart that renders nothing has
     # nothing to label, and "no pods" is not a labeling problem.
-    if workloads and not store_pods:
+    #
+    # Not for a chart that declares embernet.ai/visibility: infra. That is the
+    # chart telling the dashboard it is Super-only, and some infra never
+    # registers as an app at all: embernet-exec-proxy serves pod shells for a
+    # site and is "never a user install" (store.go isInfraChartFallback). If an
+    # infra chart DOES label a pod or Service for the store, the checks above
+    # still hold it to the full set of labels.
+    if workloads and not store_pods and attrs.get("visibility") != "infra":
         out.append(Finding(
             path, 1, "store-label-missing",
             "this store chart renders no pod template with %s: \"true\". The "

@@ -204,6 +204,17 @@ def is_store_chart(chart):
     return bool(re.search(r"^\s+[\"']?catalog\.cattle\.io/display-name[\"']?\s*:", text, re.M))
 
 
+def visibility(chart):
+    """The chart's embernet.ai/visibility annotation. "infra" is how a chart
+    tells the dashboard it is Super-only and not a user install (store.go
+    reads the same annotation), so an infra chart may choose not to register
+    a pod as an app at all. embernet-exec-proxy is the case: it serves pod
+    shells for a site and is never itself a tile."""
+    text = open(os.path.join(chart, "Chart.yaml"), encoding="utf-8", errors="replace").read()
+    m = re.search(r"^\s+[\"']?embernet\.ai/visibility[\"']?\s*:\s*[\"']?([A-Za-z-]+)", text, re.M)
+    return m.group(1).lower() if m else "user"
+
+
 def key_path(lines, idx):
     """The dotted values path of lines[idx], by indentation. Only plain nested
     maps; a key under a list returns None and is left alone rather than
@@ -396,8 +407,8 @@ def main(argv):
             while os.path.exists(os.path.join(out_dir, name)):
                 name, n = "%s-%d.yaml" % (stem, n), n + 1
             with open(os.path.join(out_dir, name), "w", encoding="utf-8", newline="\n") as fh:
-                fh.write("# app-invariants: rendered chart=%s values=%s store=%s baseline=%s\n"
-                         % (rc, label, store, "yes" if baseline else "no"))
+                fh.write("# app-invariants: rendered chart=%s values=%s store=%s baseline=%s visibility=%s\n"
+                         % (rc, label, store, "yes" if baseline else "no", visibility(c)))
                 fh.write(text)
             docs = len(re.findall(r"^kind:", text, re.M))
             print("rendered %s [%s] store=%s -> %s (%d objects)" % (rc, label, store, name, docs))

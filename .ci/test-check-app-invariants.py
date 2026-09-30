@@ -746,6 +746,28 @@ metadata:
   name: deny
 """}, FAIL, "networkpolicy-default"),
 
+    # embernet-exec-proxy declares embernet.ai/visibility: infra and is never
+    # a tile: it serves pod shells for a site. Not registering is correct.
+    ("an infra chart whose pods don't register as an app passes",
+     {"r.yaml": STORE_DEFAULTS.replace("store=yes", "store=yes baseline=no visibility=infra") + """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exec-proxy
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: exec-proxy
+"""}, PASS, None),
+
+    # ...but an infra chart that DOES register (the flux charts do) still
+    # has to carry every label.
+    ("an infra chart's store pod missing app-name still fails",
+     {"r.yaml": STORE_DEFAULTS.replace("store=yes", "store=yes baseline=no visibility=infra")
+      + GOOD_STORE_APP.replace('        embernet.ai/app-name: "demo"\n', "")},
+     FAIL, "store-label-missing"),
+
     ("a store chart that renders no pods at all is not a labeling problem",
      {"r.yaml": STORE_DEFAULTS + """
 apiVersion: v1
