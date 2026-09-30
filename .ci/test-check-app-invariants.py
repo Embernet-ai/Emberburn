@@ -60,6 +60,39 @@ VERBOSE = "-v" in sys.argv[1:]
 # `must_mention` guards against a fixture failing for the WRONG reason — a case
 # that fails on an unrelated rule would otherwise look like a pass.
 
+# What render-charts.py writes on top of a store chart's default render, and a
+# store app that is correct in every way the dashboard cares about. The store
+# cases below each break one thing.
+STORE_DEFAULTS = "# app-invariants: rendered chart=chart values=defaults store=yes\n"
+
+GOOD_STORE_APP = """---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci
+  labels:
+    embernet.ai/store-app: "true"
+    embernet.ai/app-name: "demo"
+    embernet.ai/gui-type: "web"
+    embernet.ai/gui-port: "8080"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ci
+spec:
+  template:
+    metadata:
+      labels:
+        embernet.ai/store-app: "true"
+        embernet.ai/app-name: "demo"
+        embernet.ai/gui-type: "web"
+        embernet.ai/gui-port: "8080"
+    spec:
+      containers:
+        - name: app
+"""
+
 CASES = [
     # ---- Type 3: hostNetwork + dnsPolicy --------------------------------
     ("hostnet with dnsPolicy Default fails",
@@ -128,7 +161,183 @@ hostNetwork: true
 dnsPolicy: Default
 """}, FAIL, "hostnet-dns-wrong"),
 
+    # Helm renders every workload into ONE file. The checker used to pair the
+    # first hostNetwork in the file with the first dnsPolicy in the file, so
+    # one good workload covered for a broken one. Found by review on
+    # timescale-db-pod #3. All three of these passed or failed backwards
+    # before the fix.
+    ("a good dnsPolicy on one workload does not cover another's missing one",
+     {"rendered.yaml": """
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: good
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: broken
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+        - name: b
+"""}, FAIL, "hostnet-dns-missing"),
+
+    ("a wrong dnsPolicy on the SECOND hostNetwork workload is caught",
+     {"rendered.yaml": """
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: good
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: broken
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      dnsPolicy: Default
+"""}, FAIL, "hostnet-dns-wrong"),
+
+    ("another workload's dnsPolicy is not blamed on a correct hostNetwork pod",
+     {"rendered.yaml": """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: not-hostnet
+spec:
+  template:
+    spec:
+      dnsPolicy: Default
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hostnet
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+"""}, PASS, None),
+
+    ("a raw template's if/end lines do not hide the sibling dnsPolicy",
+     {"daemonset.yaml": """
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  template:
+    spec:
+{{- if .Values.hostNetwork }}
+      hostNetwork: true
+{{- end }}
+      dnsPolicy: ClusterFirstWithHostNet
+"""}, PASS, None),
+
     # ---- Type 3: privileged --------------------------------------------
+    # The capability exemption used to be `"NET_BIND_SERVICE" in text`, so the
+    # string ANYWHERE in the file excused every privileged block in it, and a
+    # list missing NET_ADMIN and NET_RAW counted as complete. Found by review
+    # on timescale-db-pod #3. All three passed before the fix.
+    ("NET_BIND_SERVICE on one workload does not excuse another's privileged",
+     {"rendered.yaml": """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capped
+spec:
+  template:
+    spec:
+      containers:
+        - name: a
+          securityContext:
+            capabilities:
+              add: [NET_ADMIN, NET_RAW, NET_BIND_SERVICE]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: privileged-sidecar
+spec:
+  template:
+    spec:
+      containers:
+        - name: b
+          securityContext:
+            privileged: true
+"""}, FAIL, "privileged-no-caps"),
+
+    ("NET_BIND_SERVICE alone is not the capability list",
+     {"values.yaml": """
+securityContext:
+  privileged: true
+  capabilities:
+    add:
+      - NET_BIND_SERVICE
+"""}, FAIL, "privileged-no-caps"),
+
+    ("a capability named only in a comment does not clear privileged",
+     {"values.yaml": """
+securityContext:
+  # we need NET_ADMIN, NET_RAW and NET_BIND_SERVICE here
+  privileged: true
+"""}, FAIL, "privileged-no-caps"),
+
+    ("all three caps in the SAME container's securityContext clear it",
+     {"rendered.yaml": """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capped
+spec:
+  template:
+    spec:
+      containers:
+        - name: a
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE"]
+        - name: b
+          image: busybox
+"""}, PASS, None),
+
+    # render-charts.py carries a values.yaml waiver into the render as a
+    # comment right above the privileged line it controls. That is the same
+    # shape as a values.yaml waiver, so the same window rule reads it.
+    ("a waiver carried into a render by the renderer is honored",
+     {"rendered.yaml": """# app-invariants: rendered chart=chart values=defaults store=no
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plc
+spec:
+  template:
+    spec:
+      containers:
+        - name: rt
+          securityContext:
+            # app-invariants: allow-privileged: carried from chart/values.yaml:12: Patrick's call, PLC runtime
+            privileged: true
+"""}, PASS, "waiver(s) in force"),
+
+    # ---- Type 3: privileged (original cases) ---------------------------
     # A comment waiver is invisible after `helm template`, so the annotation
     # form has to work on rendered output. codesys-app failed the gate for
     # exactly this reason on its first run.
@@ -207,6 +416,28 @@ securityContext:
   privileged: true
 """}, PASS, None),
 
+    # One written waiver, one key. The window used to be six lines with no
+    # edge, which is room for a second container, so the PLC runtime's waiver
+    # also covered a privileged sidecar sitting under it.
+    ("a waiver covers the key under it, not the next privileged key too",
+     {"rendered.yaml": """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plc
+spec:
+  template:
+    spec:
+      containers:
+        - name: rt
+          securityContext:
+            # app-invariants: allow-privileged: PLC runtime, Patrick's call
+            privileged: true
+        - name: sidecar
+          securityContext:
+            privileged: true
+"""}, FAIL, "privileged-no-caps"),
+
     ("a waiver with no reason does NOT count",
      {"values.yaml": """
 securityContext:
@@ -245,6 +476,53 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: canary
+spec:
+  strategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+    - spec:
+        accessModes: [ReadWriteOnce]
+"""}, FAIL, "rwo-rollingupdate"),
+
+    # A StatefulSet never surges: it takes ordinal N down and brings it back on
+    # N's own claim. RollingUpdate is how you run one. The rule used to match
+    # StatefulSet and would have failed every HA database the day its HA mode
+    # got rendered. Found by review on timescale-db-pod #3. Failed before the
+    # fix.
+    ("a StatefulSet with per-replica RWO claims and RollingUpdate passes",
+     {"sts.yaml": """
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+spec:
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+"""}, PASS, None),
+
+    ("a Deployment after a StatefulSet in one render is still checked",
+     {"rendered.yaml": """
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+    - spec:
+        accessModes: [ReadWriteOnce]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
 spec:
   strategy:
     type: RollingUpdate
@@ -360,6 +638,121 @@ intercept:
   addresses:
     - "100.65.0.99"
 """}, FAIL, "intercept-in-dns-pool"),
+
+    # ---- Store contract, on renders only --------------------------------
+    #
+    # render-charts.py stamps every render with what it is. These rules only
+    # fire on a store chart's render, never on a raw template or a hand-written
+    # manifest, so nothing that passed before starts failing for being a
+    # different kind of file.
+    ("a NetworkPolicy in a store chart's DEFAULT render fails",
+     {"r.yaml": STORE_DEFAULTS + GOOD_STORE_APP + """---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+"""}, FAIL, "networkpolicy-default"),
+
+    ("a NetworkPolicy an operator turned on in their own values passes",
+     {"r.yaml": STORE_DEFAULTS.replace("values=defaults", "values=examples/secure.yaml")
+      + GOOD_STORE_APP + """---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: opt-in
+"""}, PASS, None),
+
+    # No chart ships one on by default, store or not.
+    ("a NetworkPolicy in a NON-store chart's default render fails too",
+     {"r.yaml": STORE_DEFAULTS.replace("store=yes", "store=no") + """
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: site-only
+"""}, FAIL, "networkpolicy-default"),
+
+    # A chart that refuses bare defaults cannot dodge the rule: its ci/ render
+    # is the baseline, and the renderer says so.
+    ("a NetworkPolicy in the baseline render of a chart that refuses defaults fails",
+     {"r.yaml": "# app-invariants: rendered chart=chart values=ci/id-values.yaml store=yes baseline=yes\n"
+      + GOOD_STORE_APP + """---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny
+"""}, FAIL, "networkpolicy-default"),
+
+    ("a store chart that renders no pods at all is not a labeling problem",
+     {"r.yaml": STORE_DEFAULTS + """
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: archived
+"""}, PASS, None),
+
+    ("a NetworkPolicy in a hand-written manifest (no render header) passes",
+     {"np.yaml": """
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cluster-infra
+"""}, PASS, None),
+
+    ("a store chart with every label on pod and Service passes",
+     {"r.yaml": STORE_DEFAULTS + GOOD_STORE_APP}, PASS, None),
+
+    ("a store pod missing app-name fails",
+     {"r.yaml": STORE_DEFAULTS + GOOD_STORE_APP.replace(
+         '        embernet.ai/app-name: "demo"\n', "")}, FAIL, "store-label-missing"),
+
+    ("a store Service missing gui-port on a web app fails",
+     {"r.yaml": STORE_DEFAULTS + GOOD_STORE_APP.replace(
+         '    embernet.ai/gui-port: "8080"\n', "", 1)}, FAIL, "Service/ci carries"),
+
+    ("a store chart whose pods lost store-app entirely fails",
+     {"r.yaml": STORE_DEFAULTS + GOOD_STORE_APP.replace(
+         '        embernet.ai/store-app: "true"\n', "")}, FAIL, "never shows up"),
+
+    ("a web store pod with no store Service fails",
+     {"r.yaml": STORE_DEFAULTS + GOOD_STORE_APP.split("---\n")[2]},
+     FAIL, "nowhere to land"),
+
+    # CODESYS runtimes are gui-type shell and Safe Time Provider is none: no
+    # GUI, no port, and no Service to hang one on. That is correct for them.
+    ("a shell app with no gui-port and no Service passes",
+     {"r.yaml": STORE_DEFAULTS + """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plc
+spec:
+  template:
+    metadata:
+      labels:
+        embernet.ai/store-app: "true"
+        embernet.ai/app-name: plc
+        embernet.ai/gui-type: shell
+"""}, PASS, None),
+
+    # The dashboard falls back to annotations for these, so the gate does too.
+    ("store labels given as pod annotations and flow-style labels pass",
+     {"r.yaml": STORE_DEFAULTS + """
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: job
+spec:
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels: {"embernet.ai/store-app": "true", "embernet.ai/gui-type": "none"}
+          annotations:
+            embernet.ai/app-name: job
+"""}, PASS, None),
 
     # ---- the checker's own trustworthiness ------------------------------
     ("a directory with no scannable files refuses to pass",

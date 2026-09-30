@@ -1,4 +1,9 @@
 name: App Invariants
+# app-invariants: fixtures
+#
+# ^ The canary at the bottom is a known-bad manifest on purpose. Without the
+# marker the checker flags this file wherever it scans it (embernet-iac scans
+# templates/), and the only way to green would be deleting the canary.
 
 # Enforces embernet-iac templates/app/README.md against this repo's charts.
 #
@@ -8,11 +13,13 @@ name: App Invariants
 # THE CHECKER IS VENDORED under .ci/, deliberately. The canonical copy lives in
 # embernet-iac templates/app/, which is private, so a cross-repo checkout needs
 # a token most of these repos do not have. The drift that vendoring risks is
-# mitigated rather than ignored: the checker's own 32-case regression suite is
-# vendored beside it and runs FIRST, so a copy that has rotted into uselessness
-# fails its own tests instead of reporting a confident green.
+# handled rather than ignored: both regression suites are vendored beside the
+# tools and run FIRST, so a copy that has rotted fails its own tests instead of
+# reporting a confident green.
 #
-# To refresh: copy both files from embernet-iac templates/app/.
+# To refresh: copy check-app-invariants.py, test-check-app-invariants.py,
+# render-charts.py and test-render-charts.py from embernet-iac templates/app/
+# into .ci/, and this file from templates/app/app-invariants.chart-repo.yml.
 
 on:
   push:
@@ -32,43 +39,46 @@ jobs:
 
       # FIRST. A result measured with an unverified checker is worth nothing.
       - name: Prove the checker works before trusting it
+        id: checker-suite
         run: python3 .ci/test-check-app-invariants.py
 
-      # Rendered manifests are the ONLY place the RWO/Recreate rule is
-      # decidable: the volume and the strategy live in one object there.
-      # Charts sit in different places per repo, so find them rather than
-      # assuming charts/.
-      - name: Render charts
-        run: |
-          set -euo pipefail
-          mkdir -p .rendered
-          while IFS= read -r cy; do
-            c=$(dirname "$cy")
-            case "$c" in */charts/*) continue ;; esac
-            n=$(basename "$c")
-            helm template ci "$c" > ".rendered/$n.yaml" 2>/dev/null               || { echo "note: $n did not render with bare defaults"; rm -f ".rendered/$n.yaml"; }
-          done < <(find . -maxdepth 3 -name Chart.yaml -not -path './.git/*')
-          echo "rendered:"; ls .rendered/ 2>/dev/null || echo "  (none)"
+      # Same deal for the renderer. The shell loop it replaced skipped every
+      # chart under charts/, which is where most of these repos keep theirs, so
+      # the gate rendered nothing there and still said green.
+      - name: Prove the renderer works before trusting it
+        id: renderer-suite
+        run: python3 .ci/test-render-charts.py
 
+      # Every chart, with defaults AND with every examples/ and ci/ values file
+      # this repo ships, because HA and the other modes are where the mistakes
+      # nobody looked at live. A render that breaks fails the job; a render the
+      # chart refuses on purpose is printed and checked the other ways.
+      - name: Render every chart, every way it ships
+        run: python3 .ci/render-charts.py --out .rendered .
+
+      # Runs even when a render broke. The job is already failing then, but
+      # everything that DID render, and the raw chart dirs, still get checked,
+      # so one broken example cannot hide a violation somewhere else. The old
+      # loop never failed a render, so the checker always ran; this keeps that.
       - name: Check app invariants
+        if: ${{ !cancelled() && steps.checker-suite.outcome == 'success' && steps.renderer-suite.outcome == 'success' }}
         run: |
           set -euo pipefail
           TARGETS=""
           for d in charts chart; do [ -d "$d" ] && TARGETS="$TARGETS $d"; done
           # Only pass .rendered if something rendered. The checker refuses a
-          # NAMED path that matched zero files -- correctly, since a silently
-          # empty scan is the failure it exists to prevent -- so handing it an
-          # empty dir would fail every repo whose charts need values to render.
+          # NAMED path that matched zero files, correctly, since a silently
+          # empty scan is the failure it exists to prevent.
           if [ -n "$(ls -A .rendered 2>/dev/null)" ]; then TARGETS="$TARGETS .rendered"; fi
           # Fall back to the whole repo. Not every repo has charts: Fragua-Demo
           # holds the Ziti wiring SCRIPTS, and those .py files are where the
-          # intercept literals live -- the offender class this checker was
-          # written for. "No charts" must not mean "nothing to check".
+          # intercept literals live. "No charts" must not mean "nothing to check".
           [ -n "$TARGETS" ] || TARGETS="."
           echo "scanning:$TARGETS"
           python3 .ci/check-app-invariants.py $TARGETS
 
       - name: Prove it still catches a violation
+        if: ${{ !cancelled() && steps.checker-suite.outcome == 'success' }}
         run: |
           mkdir -p /tmp/canary
           cat > /tmp/canary/canary.yaml <<'EOF'

@@ -162,6 +162,166 @@ WAIVER_ANNOTATION_RE = re.compile(
     "app-invariants[.]embernet[.]ai/allow-privileged:" + r"\s*\S", re.I)
 
 
+# The header render-charts.py writes on top of every rendered manifest:
+#
+#     # app-invariants: rendered chart=chart values=defaults store=yes
+#
+# Some rules are only decidable on a render. A NetworkPolicy is only a crime in
+# what gets installed when nobody touched a value, and a missing store label
+# only matters on an app the store lists. Neither can be read off one YAML
+# document, so the renderer says what the file is and the checker believes it.
+# No header, no rule: raw templates and hand-written manifests are judged
+# exactly as they always were.
+RENDERED_RE = re.compile(r"^#\s*app-invariants:\s*rendered\b(.*)$", re.M)
+
+# The labels the dashboard lists an app by. It selects pods and Services on
+# store-app=true and reads the rest off whatever it found.
+STORE_APP = "embernet.ai/store-app"
+STORE_REQUIRED = ("embernet.ai/app-name", "embernet.ai/gui-type")
+GUI_PORT_KEYS = ("embernet.ai/gui-port", "embernet.ai/gui-ports")
+
+# Where each kind keeps the pod metadata the dashboard actually reads. The
+# Deployment's OWN labels are not what the dashboard sees; the pod's are.
+POD_META_PATH = {
+    "Deployment": ("spec", "template", "metadata"),
+    "StatefulSet": ("spec", "template", "metadata"),
+    "DaemonSet": ("spec", "template", "metadata"),
+    "ReplicaSet": ("spec", "template", "metadata"),
+    "Job": ("spec", "template", "metadata"),
+    "CronJob": ("spec", "jobTemplate", "spec", "template", "metadata"),
+    "VirtualMachine": ("spec", "template", "metadata"),
+    "Pod": ("metadata",),
+}
+
+NETPOL_KIND_RE = re.compile(r"^kind:\s*[\"']?(\w*NetworkPolicy)\b", re.M)
+CAPS_NEEDED = ("NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE")
+
+
+def _indent(line):
+    return len(line) - len(line.lstrip(" "))
+
+
+def _transparent(line):
+    """Lines that carry no YAML structure: blanks, comments, and pure Go
+    template control flow like `{{- if .Values.x }}`, which sits at column 0 in
+    a raw template and would otherwise read as the end of every block."""
+    s = line.strip()
+    return (not s or s.startswith("#")
+            or (s.startswith("{{") and s.endswith("}}")))
+
+
+def _siblings(lines, idx):
+    """(start, end) of the mapping that holds lines[idx]: everything between
+    the nearest shallower line above and below. Children of the siblings are
+    inside the range too; callers that want only true siblings filter on
+    indent themselves.
+
+    This is what "the same securityContext" and "the same pod spec" mean in a
+    file that holds more than one of them."""
+    ind = _indent(lines[idx])
+    start = idx
+    for j in range(idx - 1, -1, -1):
+        if _transparent(lines[j]):
+            continue
+        # Shallower means we walked out of the mapping. A list item at our own
+        # indent means we walked into the previous item of a list.
+        if _indent(lines[j]) < ind or (
+                _indent(lines[j]) == ind and lines[j].lstrip().startswith("- ")):
+            break
+        start = j
+    end = idx + 1
+    for j in range(idx + 1, len(lines)):
+        if _transparent(lines[j]):
+            end = j + 1
+            continue
+        if _indent(lines[j]) < ind:
+            break
+        # A new list item at our own indent is a new mapping, not a sibling.
+        if _indent(lines[j]) == ind and lines[j].lstrip().startswith("- "):
+            break
+        end = j + 1
+    return start, end
+
+
+def _code(line):
+    """A line without its trailing comment, so prose can never satisfy a rule
+    that only a real value should."""
+    return re.sub(r"(^|\s)#.*$", "", line)
+
+
+def _parse_scalar(v):
+    v = v.strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        v = v[1:-1]
+    return v
+
+
+def _child(lines, start, end, key):
+    """Find `key:` as a direct child of the block lines[start:end]. Returns
+    (key_line, block_start, block_end) or None. The child indent is whatever
+    the first real line in the block uses, which is how YAML defines it."""
+    first = next((i for i in range(start, end) if not _transparent(lines[i])), None)
+    if first is None:
+        return None
+    ind = _indent(lines[first])
+    pat = re.compile(r"^\s{%d}[\"']?%s[\"']?\s*:(\s|$)" % (ind, re.escape(key)))
+    for i in range(first, end):
+        if _transparent(lines[i]):
+            continue
+        if _indent(lines[i]) < ind:
+            return None
+        if pat.match(lines[i]):
+            j = i + 1
+            while j < end and (_transparent(lines[j]) or _indent(lines[j]) > ind):
+                j += 1
+            return i, i + 1, j
+    return None
+
+
+def _mapping(lines, path):
+    """The string map at `path` in one YAML document (block or flow style),
+    or None when the path is not there. Only as much YAML as helm emits for
+    metadata; this is not a parser and does not pretend to be."""
+    start, end = 0, len(lines)
+    hit = None
+    for key in path:
+        hit = _child(lines, start, end, key)
+        if hit is None:
+            return None
+        _, start, end = hit
+    kl = lines[hit[0]]
+    inline = kl.split(":", 1)[1].strip() if ":" in kl else ""
+    inline = _code(inline).strip()
+    out = {}
+    if inline.startswith("{"):
+        for m in re.finditer(r"[\"']?([^\"',{}:\s]+)[\"']?\s*:\s*(\"[^\"]*\"|'[^']*'|[^,}]+)", inline):
+            out[m.group(1)] = _parse_scalar(m.group(2))
+        return out
+    first = next((i for i in range(start, end) if not _transparent(lines[i])), None)
+    if first is None:
+        return out
+    ind = _indent(lines[first])
+    for i in range(first, end):
+        if _transparent(lines[i]) or _indent(lines[i]) != ind:
+            continue
+        m = re.match(r"^\s*(\"[^\"]+\"|'[^']+'|[^:\s][^:]*?)\s*:\s*(.*)$", _code(lines[i]))
+        if m:
+            out[_parse_scalar(m.group(1))] = _parse_scalar(m.group(2))
+    return out
+
+
+def _docs(text):
+    """(offset, body) for every YAML document in `text`, offsets exact so a
+    finding points at the right line even when two documents are identical."""
+    out = []
+    pos = 0
+    for m in re.finditer(r"^---[ \t]*$", text, re.M):
+        out.append((pos, text[pos:m.start()]))
+        pos = m.end()
+    out.append((pos, text[pos:]))
+    return out
+
+
 def _enclosing_doc(text, offset):
     """The YAML document containing `offset`.
 
@@ -209,6 +369,111 @@ def scan_files(root):
                 yield os.path.join(dirpath, fn)
 
 
+def _check_rendered(path, text):
+    """Rules that only mean something on a store chart's rendered output.
+
+    Both are Patrick's store contract, and both used to live only in release
+    checklists and in whoever happened to remember them. A rule that lives in a
+    checklist gets skipped the one time it matters.
+    """
+    head = "\n".join(text.splitlines()[:5])
+    hm = RENDERED_RE.search(head)
+    if not hm:
+        return []
+    attrs = dict(re.findall(r"(\w+)=(\S+)", hm.group(1)))
+    out = []
+
+    # --- No NetworkPolicy in any chart's default render ---------------------
+    #
+    # Every store app has to reach every other store app, over Services and
+    # over Flux. HotLoop shipped networkPolicy.enabled: true once, the gateway
+    # could only hear 8080 and the historian only the gateway, and every other
+    # app on the box went deaf to it. The rule I wrote down after that says NO
+    # chart ships one on by default, store or not, so this runs on every
+    # chart's default render. Any policy that selects a pod isolates it for
+    # its policyTypes (kubernetes.io/docs/concepts/services-networking/
+    # network-policies, "The two sorts of pod isolation"), so there is no
+    # harmless flavor. A chart can keep a policy template, off by default. An
+    # operator who turns it on in their own values made that call.
+    #
+    # baseline=yes marks the render that stands in for defaults when a chart
+    # refuses to render bare (Network-Probe needs an identity first). Without
+    # it a chart could dodge this rule just by refusing its defaults.
+    if attrs.get("values") == "defaults" or attrs.get("baseline") == "yes":
+        for m in NETPOL_KIND_RE.finditer(text):
+            out.append(Finding(
+                path, text[:m.start()].count("\n") + 1, "networkpolicy-default",
+                "%s rendered with DEFAULT values. Defaults are what gets "
+                "installed, so this ships a restrictive policy to everyone and "
+                "cuts the app off from every other app. Put it behind "
+                "networkPolicy.enabled, default false." % m.group(1)))
+
+    if attrs.get("store") != "yes":
+        return out
+
+    # --- Store labels on the things the dashboard lists ----------------------
+    #
+    # The dashboard finds apps by selecting pods and Services on
+    # embernet.ai/store-app=true and reads app-name, gui-type and gui-port off
+    # whatever it found. A pod without store-app is an app that is running and
+    # invisible. A web app without gui-port gets its port guessed from the
+    # first containerPort, which is how a metrics port ends up in the iframe.
+    store_pods = []
+    store_svcs = []
+    workloads = 0
+    for off, doc in _docs(text):
+        km = re.search(r"^kind:\s*[\"']?(\w+)", doc, re.M)
+        if not km:
+            continue
+        kind = km.group(1)
+        dlines = doc.split("\n")
+        if kind == "Service":
+            meta_path = ("metadata",)
+        elif kind in POD_META_PATH:
+            meta_path = POD_META_PATH[kind]
+            workloads += 1
+        else:
+            continue
+        labels = _mapping(dlines, meta_path + ("labels",)) or {}
+        if labels.get(STORE_APP) != "true":
+            continue
+        annotations = _mapping(dlines, meta_path + ("annotations",)) or {}
+        both = dict(annotations)
+        both.update(labels)
+        nm = re.search(r"^metadata:\s*\n(?:[ \t].*\n)*?[ \t]+name:\s*(\S+)", doc, re.M)
+        what = "%s/%s" % (kind, _parse_scalar(nm.group(1)) if nm else "?")
+        ln = text[:off + km.start()].count("\n") + 1
+        (store_svcs if kind == "Service" else store_pods).append((what, both))
+        missing = [k for k in STORE_REQUIRED if not both.get(k)]
+        if both.get("embernet.ai/gui-type") == "web" and not any(
+                both.get(k) for k in GUI_PORT_KEYS):
+            missing.append(GUI_PORT_KEYS[0])
+        if missing:
+            out.append(Finding(
+                path, ln, "store-label-missing",
+                "%s carries %s but not %s. The dashboard reads these off the "
+                "%s it lists, and without them it guesses."
+                % (what, STORE_APP, ", ".join(missing),
+                   "Service" if kind == "Service" else "pod")))
+
+    # Only when the render HAS pods. An archived chart that renders nothing has
+    # nothing to label, and "no pods" is not a labeling problem.
+    if workloads and not store_pods:
+        out.append(Finding(
+            path, 1, "store-label-missing",
+            "this store chart renders no pod template with %s: \"true\". The "
+            "dashboard lists apps by that label on the POD, so this app installs, "
+            "runs, and never shows up." % STORE_APP))
+    elif (any(b.get("embernet.ai/gui-type") == "web" for _, b in store_pods)
+          and not store_svcs):
+        out.append(Finding(
+            path, 1, "store-label-missing",
+            "a web GUI pod is labeled for the store but no Service carries %s: "
+            "\"true\". The subdomain route resolves the app through that "
+            "Service, so the GUI has nowhere to land." % STORE_APP))
+    return out
+
+
 def check_file(path):
     """Return (findings, waivers). A waiver is a privileged block excused in
     writing — counted and reported, never silently dropped."""
@@ -227,15 +492,38 @@ def check_file(path):
         return [], [], True
 
     text = "\n".join(lines)
-    host_network = re.search(r"^\s*hostNetwork:\s*true\b", text, re.M)
-    dns_policy = re.search(r"^\s*dnsPolicy:\s*(\S+)", text, re.M)
-    pol = dns_policy.group(1).strip() if dns_policy else None
-    pol_known = pol is not None and not TEMPLATED.search(pol)
+    is_values = bool(VALUES_FILE_RE.search(path))
 
     # --- Type 3: hostNetwork demands ClusterFirstWithHostNet -----------------
-    if host_network:
+    #
+    # PER POD SPEC. This used to take the first hostNetwork and the first
+    # dnsPolicy anywhere in the file and pair them. Helm output is one file
+    # with every workload in it, so a correct dnsPolicy on workload A covered
+    # for a missing one on workload B, and a wrong one on B got blamed on A.
+    # The dnsPolicy that counts is the one sitting next to hostNetwork in the
+    # same pod spec, which is the only place Kubernetes reads it from.
+    #
+    # A values file is the one exception: it is a single document of INPUTS
+    # with no pod spec in it, so a wrong policy named anywhere in it is still
+    # read the way it always was.
+    file_pol = re.search(r"^\s*dnsPolicy:\s*(\S+)", text, re.M)
+    for host_network in re.finditer(r"^\s*hostNetwork:\s*true\b", text, re.M):
         ln = text[:host_network.start()].count("\n") + 1
-        if pol is None and not VALUES_FILE_RE.search(path):
+        idx = ln - 1
+        s, e = _siblings(lines, idx)
+        ind = _indent(lines[idx])
+        pol = None
+        for j in range(s, e):
+            if _indent(lines[j]) != ind:
+                continue
+            pm = re.match(r"^\s*dnsPolicy:\s*(\S+)", lines[j])
+            if pm:
+                pol = pm.group(1).strip()
+                break
+        if pol is None and is_values and file_pol:
+            pol = file_pol.group(1).strip()
+        pol_known = pol is not None and not TEMPLATED.search(pol)
+        if pol is None and not is_values:
             out.append(Finding(
                 path, ln, "hostnet-dns-missing",
                 "hostNetwork: true with no dnsPolicy. The pod inherits the "
@@ -267,14 +555,34 @@ def check_file(path):
     # and on a rendered multi-workload manifest that means every object after
     # the first was invisible, with one waived workload silencing all of them.
     # Caught by the cross-document waiver regression case.
+    #
+    # The capability list has to be THIS securityContext's, and it has to be
+    # all three. This used to be `if "NET_BIND_SERVICE" in text: break`, so the
+    # string anywhere in the file (another container, another workload, a
+    # comment) waved through every privileged block in it, and a list with
+    # NET_BIND_SERVICE but no NET_ADMIN or NET_RAW counted as complete. On a
+    # rendered chart that is one line in one sidecar excusing the whole
+    # release.
     for m in re.finditer('^\\s*privileged:\\s*true\\b', text, re.M):
-        if "NET_BIND_SERVICE" in text:
-            break
         ln = text[:m.start()].count('\n') + 1
+        s, e = _siblings(lines, ln - 1)
+        ctx = "\n".join(_code(l) for l in lines[s:e])
+        if all(re.search(r"\b(?:CAP_)?%s\b" % c, ctx) for c in CAPS_NEEDED):
+            continue
         # The waiver has to be attached to the thing it waives. Scanning the
         # whole file would let one reasoned exception silence every other
         # privileged block in a values.yaml that has several.
-        window = "\n".join(lines[max(0, ln - 7):ln])
+        #
+        # And it covers ONE key: the window stops at the previous privileged
+        # line. Six lines is plenty of room for a second container, so without
+        # this a waiver written for the PLC runtime also covered whatever
+        # privileged sidecar sat under it.
+        wl = lines[max(0, ln - 7):ln - 1]
+        for k in range(len(wl) - 1, -1, -1):
+            if re.match(r"^\s*privileged:", wl[k]):
+                wl = wl[k + 1:]
+                break
+        window = "\n".join(wl + [lines[ln - 1]])
         #
         # Two shapes, because there are two kinds of file. In a values.yaml a
         # comment above the key is the only option, so the window is the scope.
@@ -310,20 +618,29 @@ def check_file(path):
     # the rule cannot be decided there and is skipped rather than guessed. It is
     # decidable on a rendered manifest, where both live in one object. A check
     # that cries wolf gets switched off, which is worse than no check.
-    for doc in re.split(r"^---\s*$", text, flags=re.M):
-        if not re.search(r"^\s*kind:\s*(Deployment|StatefulSet)\b", doc, re.M):
+    #
+    # DEPLOYMENTS ONLY. The deadlock is the surge: a Deployment starts the new
+    # pod before it kills the old one, and both want the same claim. A
+    # StatefulSet never surges. It takes ordinal N down, then brings ordinal N
+    # back on N's own claim from volumeClaimTemplates, so RollingUpdate is the
+    # normal, correct way to run one. This used to match StatefulSet too, which
+    # failed every HA database the moment its HA mode got rendered.
+    for off, doc in _docs(text):
+        if not re.search(r"^\s*kind:\s*[\"']?Deployment\b", doc, re.M):
             continue
         if "ReadWriteOnce" not in doc:
             continue
         strat = re.search(r"^\s*type:\s*RollingUpdate\b", doc, re.M)
         if strat:
-            ln = text[:text.index(doc) + strat.start()].count("\n") + 1
+            ln = text[:off + strat.start()].count("\n") + 1
             out.append(Finding(
                 path, ln, "rwo-rollingupdate",
                 "ReadWriteOnce PVC with strategy RollingUpdate in the same "
                 "object. The surge pod can never attach the volume; the upgrade "
                 "deadlocks on Multi-Attach and the release lands failed while "
                 "the spec is fine. Use strategy: Recreate."))
+
+    out.extend(_check_rendered(path, text))
 
     # --- Types 1/2: intercept addressing -------------------------------------
     # Python docstrings are prose, and prose is already exempt — whole-line `#`
