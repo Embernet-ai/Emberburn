@@ -659,6 +659,7 @@ def check_file(path):
     is_py = path.endswith(".py")
 
     current_key = ""
+    ctx = []  # (indent key, lowered code) of the lines enclosing this one
     for i, line in enumerate(lines, 1):
         if is_py:
             rest = line
@@ -683,6 +684,16 @@ def check_file(path):
             line = rest
         if line.lstrip().startswith("#"):
             continue
+        # Track which lines this one is nested under, by indentation, so the
+        # node-range rule can ask "is this literal declared AS an intercept".
+        # A list item counts as a child of a key at its own indent, which is
+        # legal YAML ("addresses:" then "- 100.64.1.7" in the same column).
+        code_l = re.sub(r"\s+#.*$", "", line).lower()
+        eff = 2 * (len(line) - len(line.lstrip())) + (1 if line.lstrip().startswith("- ") else 0)
+        while ctx and ctx[-1][0] >= eff:
+            ctx.pop()
+        in_intercept = "intercept" in code_l or any("intercept" in c for _, c in ctx)
+        ctx.append((eff, code_l))
         # Track the key a list item belongs to, so a certificate SAN list is not
         # read as an addressing declaration. Only mapping keys reset this; list
         # items ("- 100.64.2.2") inherit the key above them, which is exactly
@@ -706,8 +717,16 @@ def check_file(path):
                 "handed to another service and the path goes silently dead. Use "
                 "a <svc>.flux.internal name and let the router allocate."
                 % m.group(0)))
+        # Only a literal DECLARED as an intercept: on a line that names one
+        # (INTERCEPT_ADDR = ..., "intercept": ..., intercept.v1 '{"addresses":
+        # [...]}') or nested under one (intercept: / addresses: / - ...). This
+        # used to fire on any node address in any file where the word
+        # "intercept" appeared at all, comments included, so the dashboard's
+        # k3s.serverURL (a node the agent dials, which is exactly what a node
+        # address is for) failed because an OAuth comment 800 lines up said "a
+        # code intercepted between Vord and the callback".
         for m in NODE_RANGE_RE.finditer(stripped):
-            if "intercept" not in text.lower():
+            if not in_intercept:
                 continue
             out.append(Finding(
                 path, i, "intercept-shadows-node",

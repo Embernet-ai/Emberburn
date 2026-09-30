@@ -614,6 +614,67 @@ nodeCidrs: ""   # nodes live in 100.64.0.0/24 and 100.64.1.0/24
 INTERCEPT_ADDR = "100.64.1.7"
 '''}, FAIL, "intercept-shadows-node"),
 
+    # The rule is about DECLARING an intercept on a node address. It used to
+    # fire on any node address in any file where the word "intercept" showed
+    # up anywhere, comments included. industrial-dashboard's values.yaml has a
+    # k3s.serverURL on 100.64.0.1 (the node an agent joins, which is what a
+    # node address is for) and an OAuth comment 800 lines up about "a code
+    # intercepted between Vord and the callback". That failed. Failed before
+    # the fix.
+    ("a node address a client dials, in a file that says 'intercepted' in prose, passes",
+     {"values.yaml": """
+oauth:
+  # PKCE matters: it rejects the proxy's own verifier, so a code intercepted
+  # between Vord and the callback is useless to whoever caught it.
+  enabled: true
+k3s:
+  # Address a joining agent dials. Must be covered by the k3s serving cert.
+  serverURL: "https://100.64.0.1:6443"
+"""}, PASS, None),
+
+    ("a node address next to, not under, an intercept key passes",
+     {"values.yaml": """
+flux:
+  interceptPool: "100.65.0.0/16"
+  controllerAddress: "100.64.0.10"
+"""}, PASS, None),
+
+    # ...and every real way an intercept gets declared on this estate still
+    # fails.
+    ("a node address in a YAML intercept block fails",
+     {"svc.yaml": """
+services:
+  designer:
+    intercept:
+      addresses:
+        - "100.64.1.7"
+      portRanges: [{low: 8088, high: 8088}]
+"""}, FAIL, "intercept-shadows-node"),
+
+    ("a node address as a list item in the key's own column fails",
+     {"svc.yaml": """
+intercept:
+  addresses:
+  - 100.64.2.9
+"""}, FAIL, "intercept-shadows-node"),
+
+    ("a node address in an intercept.v1 JSON one-liner fails",
+     {"wire.sh": '''#!/bin/sh
+flux edge create config designer-intercept intercept.v1 '{"protocols":["tcp"],"addresses":["100.64.0.20"],"portRanges":[{"low":8088,"high":8088}]}'
+'''}, FAIL, "intercept-shadows-node"),
+
+    ("a node address in a nested Python intercept dict fails",
+     {"wire.py": '''
+SERVICES = {
+    "designer": {
+        "intercept": {
+            "addresses": ["100.64.1.9"],
+            "port": 8088,
+        },
+    },
+}
+'''}, FAIL, "intercept-shadows-node"),
+
     # A tls-san list is the set of names a serving cert must cover. During an
     # address migration it legitimately holds the old address AND the new one —
     # that is the point of it. Reading those as intercepts produced three
