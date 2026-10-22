@@ -433,7 +433,7 @@ Can reduce costs by 30-50% for non-24/7 workloads.
 
 ### Fleet Deployment Fallback
 If you encounter issues with self-service deployment:
-1. Contact support: `support@fireball-industries.com`
+1. Contact support: `patrick@fireballz.ai`
 2. Provide: Namespace name, error logs, deployment YAML
 3. Support team will initiate Fleet deployment
 

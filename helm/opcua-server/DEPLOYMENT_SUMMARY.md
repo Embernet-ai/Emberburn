@@ -337,7 +337,7 @@ Files written:
 
 If clients encounter issues with self-service deployment:
 
-1. **Support Ticket**: Client emails support@fireball-industries.com
+1. **Support Ticket**: Client emails patrick@fireballz.ai
 2. **Fleet Deployment**: Support team deploys via Fleet (same configuration)
 3. **Handoff**: Client manages via Rancher UI after deployment
 4. **Investigation**: Support investigates root cause and updates chart if needed

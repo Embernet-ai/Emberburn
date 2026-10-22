@@ -17,7 +17,7 @@ setup(
     name="emberburn",
     version=__version__,
     author="Patrick Ryan",
-    author_email="patrick@fireball-industries.com",
+    author_email="patrick@fireballz.ai",
     description="Multi-Protocol Industrial IoT Gateway with OPC UA Server",
     long_description=long_description,
     long_description_content_type="text/markdown",

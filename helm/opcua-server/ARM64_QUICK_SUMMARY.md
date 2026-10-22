@@ -185,7 +185,7 @@ helm install emberburn ./helm/opcua-server \
 ## 🆘 Support
 
 - **GitHub Issues**: https://github.com/fireball-industries/Small-Application/issues
-- **Email**: patrick@fireball-industries.com
+- **Email**: patrick@fireballz.ai
 - **Documentation**: https://fireballz.ai/emberburn
 
 ---
