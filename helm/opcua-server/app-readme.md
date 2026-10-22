@@ -92,7 +92,7 @@ EmberBurn runs with enterprise security:
 This chart is maintained by Fireball Industries and included with your subscription.
 
 - **Documentation**: Built into Web UI
-- **Support**: support@fireball-industries.com
+- **Support**: patrick@fireballz.ai
 - **Updates**: Automatic via Rancher app catalog
 - **Fleet Fallback**: Available if self-service deployment fails
 

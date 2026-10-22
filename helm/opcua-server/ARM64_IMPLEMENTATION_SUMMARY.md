@@ -372,7 +372,7 @@ To activate ARM64 support:
 
 **Issues/Questions**:
 - GitHub Issues: https://github.com/fireball-industries/Small-Application/issues
-- Email: patrick@fireball-industries.com
+- Email: patrick@fireballz.ai
 
 **Documentation**:
 - [ARM64 Deployment Guide](../docs/ARM64_DEPLOYMENT.md)

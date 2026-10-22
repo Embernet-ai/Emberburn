@@ -309,7 +309,7 @@ Service Discovery → External IP → Web UI at http://<ip>:5000
 - **Documentation**: [RANCHER_APP_STORE_GUIDE.md](RANCHER_APP_STORE_GUIDE.md)
 - **FAQ**: [RANCHER_APP_STORE_GUIDE.md](RANCHER_APP_STORE_GUIDE.md) → "FAQ"
 - **Troubleshooting**: [RANCHER_APP_STORE_GUIDE.md](RANCHER_APP_STORE_GUIDE.md) → "Troubleshooting"
-- **Fleet Fallback**: Contact support@fireball-industries.com
+- **Fleet Fallback**: Contact patrick@fireballz.ai
 
 ### For DevOps
 - **Packaging**: [PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)
@@ -395,7 +395,7 @@ helm install test . --namespace test --create-namespace --dry-run
 ## 📞 Contact & Support
 
 **Fireball Industries**
-- Email: support@fireball-industries.com
+- Email: patrick@fireballz.ai
 - Website: https://fireballz.ai/emberburn
 - GitHub: https://github.com/fireball-industries
 

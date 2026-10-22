@@ -9,7 +9,7 @@ FROM python:3.11-slim
 
 LABEL org.opencontainers.image.source="https://github.com/fireball-industries/Small-Application"
 LABEL org.opencontainers.image.description="EmberBurn Industrial IoT Gateway"
-LABEL maintainer="patrick@fireball-industries.com"
+LABEL maintainer="patrick@fireballz.ai"
 
 WORKDIR /app
 
