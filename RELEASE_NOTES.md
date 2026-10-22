@@ -3,6 +3,15 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.29, 2026-09-28
+
+The pod's scrape annotation said port 8000, where nothing listens, so annotation
+based Prometheus scrapers got a closed port. It says 5000 now, where Flask
+serves `/metrics`. The optional NetworkPolicy opened 8000 for metrics; it opens
+5000, the port after the Service translates it, so turning it on no longer cuts
+Prometheus off. The packaged chart README names the real image and Services. No
+application code changed.
+
 ## v4.4.28, 2026-09-27
 
 The App Store card said "EmberBurn - Multi-Protocol IoT Gateway". It says
