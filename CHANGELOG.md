@@ -5,6 +5,14 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.1] - 2026-11-20: DNP3 Skips String Tags
+
+### Fixed
+
+- **A string tag no longer floods the DNP3 log.** DNP3 has no point type for a
+  string, so every publish of one raised "could not convert string to float" as
+  an error. The publisher now notes the tag once and does not serve it.
+
 ## [4.8.0] - 2026-11-20: Layer 2 Protocols
 
 ### Added

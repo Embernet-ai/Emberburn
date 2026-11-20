@@ -3,6 +3,12 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.8.0, 2026-11-20
+
+The Modbus publisher starts again on pymodbus 3.16, and the DNP3 master waits for
+the acknowledgement to its link reset before it polls. Layer 2 protocols (GOOSE,
+PROFINET DCP and RT, EtherCAT) are in this release.
+
 ## v4.5.0 through v4.7.0, merged and never tagged
 
 I merged 4.5.0, 4.6.0 and 4.7.0 to `main` and never pushed a tag for any of them, so

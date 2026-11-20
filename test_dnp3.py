@@ -59,14 +59,28 @@ def check_wire():
     assert pub.running
     writes = []
     pub.set_write_callback(lambda n, v: writes.append((n, v)) or True)
+    import logging
+    seen = []
+
+    class Catch(logging.Handler):
+        def emit(self, record):
+            seen.append((record.levelno, record.getMessage()))
+    pub.logger.addHandler(Catch())
     for name, value in (("Plant/Temp", 21.5), ("Plant/Run", True), ("Plant/Level", 41),
                         ("Plant/Count", 5), ("Plant/Valve", False), ("Plant/Setpoint", 12.5)):
         pub.publish(name, value)
+    # a string tag has no DNP3 point: it is skipped with one info line, never an error, and the others still serve
+    for _ in range(5):
+        pub.publish("Plant/Mode", "AUTO")
     time.sleep(1)
     try:
         asyncio.run(asyncio.wait_for(master_checks(pub, writes), 40))
     finally:
         pub.stop()
+    errors = [m for lvl, m in seen if lvl >= logging.ERROR]
+    assert not errors, errors
+    notes = [m for lvl, m in seen if "Plant/Mode" in m]
+    assert len(notes) == 1, notes
     return True
 
 
