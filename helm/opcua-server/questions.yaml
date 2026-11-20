@@ -247,6 +247,20 @@ questions:
       type: int
       default: 1234
 
+- variable: config.publishers.dnp3.enabled
+  label: Enable DNP3
+  description: "Serve the tags as points of a DNP3 outstation (TCP 20000)"
+  type: boolean
+  default: false
+  group: "Protocols"
+
+- variable: config.publishers.iec104.enabled
+  label: Enable IEC 60870-5-104
+  description: "Serve the tags as information objects of an IEC 104 controlled station (TCP 2404)"
+  type: boolean
+  default: false
+  group: "Protocols"
+
 - variable: config.publishers.influxdb.enabled
   label: Enable InfluxDB Storage
   description: "Store historical data in InfluxDB"

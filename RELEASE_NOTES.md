@@ -3,6 +3,15 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.6.0, 2026-11-20
+
+EmberBurn can serve its tags as a Siemens S7 CPU (S7comm on TCP 102) and as a
+BACnet/IP device (UDP 47808), for protocol analyzer and intrusion detection
+testing. Both are off by default. Port 102 is privileged, so the pod sets one
+sysctl while S7comm is on and the container stays non-root with every capability
+dropped. The reply to an EtherNet/IP request with an unregistered session no
+longer echoes the request.
+
 ## v4.5.0, 2026-11-20
 
 EmberBurn can serve its tags over EtherNet/IP and CIP as a Logix style

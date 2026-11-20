@@ -13,6 +13,8 @@ on:
       - 'test_enip.py'
       - 'test_s7.py'
       - 'test_bacnet.py'
+      - 'test_dnp3.py'
+      - 'test_iec104.py'
       - 'requirements.txt'
       - '.github/workflows/protocol-tests.yml'
   pull_request:
@@ -22,6 +24,8 @@ on:
       - 'test_enip.py'
       - 'test_s7.py'
       - 'test_bacnet.py'
+      - 'test_dnp3.py'
+      - 'test_iec104.py'
       - 'requirements.txt'
       - '.github/workflows/protocol-tests.yml'
   workflow_dispatch:
@@ -56,3 +60,13 @@ jobs:
           set -o pipefail
           python test_bacnet.py | tee /tmp/bacnet.log
           grep -q '^2/2$' /tmp/bacnet.log
+      - name: DNP3
+        run: |
+          set -o pipefail
+          python test_dnp3.py | tee /tmp/dnp3.log
+          grep -q '^3/3$' /tmp/dnp3.log
+      - name: IEC 60870-5-104
+        run: |
+          set -o pipefail
+          python test_iec104.py | tee /tmp/iec104.log
+          grep -q '^4/4$' /tmp/iec104.log

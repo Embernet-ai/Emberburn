@@ -175,6 +175,16 @@ Port names are at most 15 characters (IANA service name rule), unique in the pod
 {{- $ports = append $ports (dict "name" "bacnet" "port" (int (.port | default 47808)) "protocol" "UDP") -}}
 {{- end }}
 {{- end }}
+{{- with $p.dnp3 }}
+{{- if .enabled }}
+{{- $ports = append $ports (dict "name" "dnp3" "port" (int (.port | default 20000)) "protocol" "TCP") -}}
+{{- end }}
+{{- end }}
+{{- with $p.iec104 }}
+{{- if .enabled }}
+{{- $ports = append $ports (dict "name" "iec104" "port" (int (.port | default 2404)) "protocol" "TCP") -}}
+{{- end }}
+{{- end }}
 {{- toJson $ports -}}
 {{- end -}}
 

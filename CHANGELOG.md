@@ -5,6 +5,23 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.0] - 2026-11-20: DNP3 And IEC 104
+
+### Added
+
+- **EmberBurn serves its tags as a DNP3 outstation.** Enable `publishers.dnp3`:
+  analog and binary inputs, counters, change events in classes 1, 2 and 3,
+  select-before-operate and direct operate on outputs, TCP 20000. A `dnp3_master`
+  role polls a remote outstation. dnp3py (MIT) is the stack; analog values are 32
+  bit integers scaled by 100 by default.
+- **EmberBurn serves its tags as an IEC 60870-5-104 controlled station.** Enable
+  `publishers.iec104`: STARTDT, station and counter interrogation, time tagged
+  spontaneous reports, single and setpoint commands with select and execute,
+  negative confirmations, k and w flow control, TCP 2404. An `iec104_master` role
+  is the controlling station. Written from the standard: the Python libraries
+  are GPLv3.
+- **The chart carries both** (container ports and the `<release>-ot` Service).
+
 ## [4.6.0] - 2026-11-20: S7comm And BACnet
 
 ### Added

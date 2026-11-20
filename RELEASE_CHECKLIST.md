@@ -174,7 +174,9 @@ All must pass before committing:
       frames, including implicit I/O. Each protocol added under `protocols/`
       brings its own `test_<protocol>.py`, listed here:
       `pip install python-snap7 && python test_s7.py` → `2/2`,
-      `pip install bacpypes3 && python test_bacnet.py` → `2/2`.
+      `pip install bacpypes3 && python test_bacnet.py` → `2/2`,
+      `pip install dnp3py && python test_dnp3.py` → `3/3`,
+      `python test_iec104.py` → `4/4`.
 - [ ] **Docker build** (optional, CI handles multi-arch), `docker build -t emberburn:X.Y.Z .`
 
 ---
