@@ -7,6 +7,7 @@ Author: Your Friendly Neighborhood Engineer
 License: MIT
 """
 
+import importlib
 import json
 import logging
 import re
@@ -23,6 +24,7 @@ from flask import Flask, jsonify, request
 from urllib.parse import quote
 from flask_cors import CORS
 
+import protocols
 from version import __version__
 
 try:
@@ -4617,6 +4619,9 @@ class PublisherManager:
         'Data Transformation': 'Derives computed tags from source tag values',
     }
 
+    PUBLISHER_DISPLAY_NAMES.update(protocols.DISPLAY_NAMES)
+    PUBLISHER_DESCRIPTIONS.update(protocols.DESCRIPTIONS)
+
     @classmethod
     def _friendly_name(cls, publisher) -> str:
         """Map a publisher instance to its display name."""
@@ -4743,6 +4748,16 @@ class PublisherManager:
             transformation_pub = DataTransformationPublisher(transformation_config, self.logger)
             self.publishers.append(transformation_pub)
             self.logger.info("Data Transformation publisher initialized")
+
+        # Simulated OT protocol endpoints (EtherNet/IP and the rest of the
+        # protocols package). Imported only when enabled, so an install that
+        # does not use one never loads its code.
+        for key, (module_name, class_name) in protocols.REGISTRY.items():
+            proto_config = publishers_config.get(key, {})
+            if proto_config.get("enabled", False):
+                proto_class = getattr(importlib.import_module(module_name), class_name)
+                self.publishers.append(proto_class(proto_config, self.logger))
+                self.logger.info(f"{protocols.DISPLAY_NAMES.get(class_name.replace('Publisher', ''), class_name)} publisher initialized")
 
         # Wire the REST API publisher's /history route to the SQLite
         # publisher's query method. Must happen after both are constructed —

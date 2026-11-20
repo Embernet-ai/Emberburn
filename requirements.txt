@@ -43,3 +43,8 @@ cryptography>=48.0.1    # GHSA-537c-gmf6-5ccf
 # GraphQLPublisher needs only graphene (above). It serves /graphql from a plain
 # Flask view over schema.execute(), so no flask-graphql — that package is
 # unmaintained and pins graphql-core<3, which graphene 3 cannot use.
+
+# EtherNet/IP client role (protocols/enip_client.py): the CIP client side. MIT.
+# The EtherNet/IP SERVER (protocols/enip.py) needs no library: the only server
+# library, cpppo, is GPLv3 or proprietary and cannot be linked into this MIT code.
+pycomm3>=1.2.16,<2.0.0

@@ -1,0 +1,44 @@
+name: Protocol Tests
+
+# The OT protocol simulators under protocols/ are checked with independent
+# clients on the wire, not by importing the module: a simulator that only
+# talks to itself proves nothing. Each protocol's test is listed here and in
+# RELEASE_CHECKLIST.md section 5.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'protocols/**'
+      - 'publishers.py'
+      - 'test_enip.py'
+      - 'requirements.txt'
+      - '.github/workflows/protocol-tests.yml'
+  pull_request:
+    paths:
+      - 'protocols/**'
+      - 'publishers.py'
+      - 'test_enip.py'
+      - 'requirements.txt'
+      - '.github/workflows/protocol-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protocols:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: |
+          set -o pipefail
+          pip install -r requirements.txt pycomm3==1.2.16
+      - name: EtherNet/IP and CIP
+        run: |
+          set -o pipefail
+          python test_enip.py | tee /tmp/enip.log
+          grep -q '^4/4$' /tmp/enip.log

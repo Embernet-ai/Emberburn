@@ -36,7 +36,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.4.30"
+    tag: "4.5.0"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
@@ -257,6 +257,25 @@ config:
       usernameKey: "username"
       passwordKey: "password"
 
+    # EtherNet/IP and CIP: a Logix style controller serving the gateway's tags,
+    # with Assembly 100 (input) and 101 (output) for implicit I/O on UDP io_port.
+    # Test and demo traffic for protocol analyzers and intrusion detection; see
+    # docs/OT_PROTOCOLS.md. Ports above 1024, no extra capability needed.
+    ethernet_ip:
+      enabled: false
+      host: "0.0.0.0"
+      port: 44818
+      io_port: 2222
+      program_name: "EmberBurn"
+      identity:
+        vendor_id: 1
+        device_type: 14
+        product_code: 166
+        revision_major: 33
+        revision_minor: 11
+        product_name: "1756-L83E/B"
+      assembly_output_size: 32
+
     # GraphQL API
     graphql:
       enabled: false
@@ -329,6 +348,11 @@ service:
     protocol: TCP
     # NodePort (only used if type: NodePort)
     nodePort: null
+    annotations: {}
+
+  # Simulated OT protocols Service (rendered only when one is enabled)
+  ot:
+    type: ClusterIP
     annotations: {}
 
   # Prometheus Metrics Service

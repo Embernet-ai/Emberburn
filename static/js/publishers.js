@@ -12,6 +12,8 @@ const PROTOCOL_ICONS = {
     'WebSocket': '🔌',
     'InfluxDB': '📊',
     'MODBUS TCP': '🔧',
+    'EtherNet/IP': '🏭',
+    'EtherNet/IP Client': '🏭',
     'OPC UA Client': '🔗',
     'Alarms': '🚨',
     'Prometheus': '📈',

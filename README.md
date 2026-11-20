@@ -62,6 +62,7 @@ What started as "let me add MQTT real quick" has spiraled into something my ther
 | **AMQP (RabbitMQ)** | Enterprise message queuing | "The rabbit just keeps hopping" | 🐰 Unhinged |
 | **WebSocket** | Real-time browser push | "Dashboards should dance" | 💃 Vibing |
 | **MODBUS TCP** | Legacy PLC and SCADA comms | "Respect your elders (even from 1979)" | 👴 Nostalgic |
+| **EtherNet/IP and CIP** | A Logix style controller with tag read/write, tag browse and implicit I/O | EmberSecurity needed device traffic to chew on, and I was already here | 🏭 Industrial |
 | **InfluxDB** | Time-series database storage | "I should probably store this somewhere" | 📊 Responsible |
 | **Prometheus** | Operational metrics endpoint | "Gotta monitor the thing that monitors things" | 🤯 Meta |
 | **OPC UA Client** | Push data TO other OPC UA servers | "Bidirectional baby" | 🔄 Chaotic |
@@ -70,6 +71,14 @@ What started as "let me add MQTT real quick" has spiraled into something my ther
 | **Data Transformation** | Unit conversion, scaling, computed tags | "Math is a protocol now, fight me" | 🧮 Deranged |
 
 All of these run **simultaneously**. At the same time. In the same process. Like a one-man-band at the intersection of DevOps and industrial automation. Is it beautiful? Debatable. Does it work? Mostly. Will I add more? My keyboard is warm and my impulse control is nonexistent.
+
+## The OT Protocol Simulators
+
+EtherNet/IP is the first of a set of simulators that serve the tags as the
+traffic of other industrial protocols, so protocol analyzers, intrusion
+detection and clients have something realistic to look at. They are off by
+default and live in `protocols/`. The list, the config and what is and is not
+simulated are in [docs/OT_PROTOCOLS.md](docs/OT_PROTOCOLS.md).
 
 ## Confession Time (The "15" Was Doing Some Heavy Lifting)
 

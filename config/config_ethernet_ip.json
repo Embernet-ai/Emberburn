@@ -1,0 +1,84 @@
+{
+  "tags": {
+    "Temperature": {
+      "type": "float",
+      "initial_value": 20.0,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 15.0,
+      "max": 25.0,
+      "description": "Ambient temperature in Celsius"
+    },
+    "Pressure": {
+      "type": "float",
+      "initial_value": 101.3,
+      "simulate": true,
+      "simulation_type": "random",
+      "min": 99.0,
+      "max": 103.0,
+      "description": "System pressure in kPa"
+    },
+    "FlowRate": {
+      "type": "float",
+      "initial_value": 100.0,
+      "simulate": true,
+      "simulation_type": "sine",
+      "amplitude": 20.0,
+      "offset": 100.0,
+      "period": 30,
+      "description": "Flow rate in L/min"
+    },
+    "Counter": {
+      "type": "int",
+      "initial_value": 0,
+      "simulate": true,
+      "simulation_type": "increment",
+      "increment": 1,
+      "max": 1000,
+      "reset_on_max": true,
+      "description": "Production counter"
+    },
+    "Status": {
+      "type": "string",
+      "initial_value": "Running",
+      "simulate": false,
+      "description": "System status message"
+    },
+    "IsRunning": {
+      "type": "bool",
+      "initial_value": true,
+      "simulate": false,
+      "description": "System running flag"
+    }
+  },
+  "publishers": {
+    "rest_api": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 5000
+    },
+    "ethernet_ip": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 44818,
+      "io_port": 2222,
+      "program_name": "EmberBurn",
+      "identity": {
+        "vendor_id": 1,
+        "device_type": 14,
+        "product_code": 166,
+        "revision_major": 33,
+        "revision_minor": 11,
+        "product_name": "1756-L83E/B"
+      },
+      "assembly_input_tags": [
+        "Temperature",
+        "Pressure",
+        "FlowRate",
+        "Counter",
+        "IsRunning"
+      ],
+      "assembly_output_size": 8
+    }
+  }
+}

@@ -109,6 +109,15 @@ spec:
           containerPort: {{ .Values.emberburn.ports.opcua }}
           protocol: TCP
         {{- /*
+          Simulated OT protocols (config.publishers.<protocol>.enabled). Ports
+          come from emberburn.otPorts, which follows the application config.
+        */}}
+        {{- range (include "emberburn.otPorts" . | fromJsonArray) }}
+        - name: {{ .name }}
+          containerPort: {{ .port }}
+          protocol: {{ .protocol }}
+        {{- end }}
+        {{- /*
           No prometheus containerPort. Nothing in the image binds one.
           PrometheusPublisher serves /metrics through the Flask app on the webui
           port, so a third containerPort here advertised a listener that never

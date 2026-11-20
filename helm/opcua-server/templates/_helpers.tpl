@@ -146,3 +146,24 @@ image and every value set here was silently ignored, including
 {{- define "emberburn.appConfig" -}}
 {{- toJson (dict "tags" .Values.config.tags "publishers" .Values.config.publishers) }}
 {{- end }}
+
+{{/*
+Container and Service ports of the simulated OT protocols that are enabled under
+config.publishers. A JSON list of {name, port, protocol}. One stanza per
+protocol: the port follows config.publishers.<key>.port so the chart cannot
+declare a port the application is not listening on.
+
+Port names are at most 15 characters (IANA service name rule), unique in the pod.
+*/}}
+{{- define "emberburn.otPorts" -}}
+{{- $ports := list -}}
+{{- $p := .Values.config.publishers -}}
+{{- with $p.ethernet_ip }}
+{{- if .enabled }}
+{{- $ports = append $ports (dict "name" "enip-tcp" "port" (int (.port | default 44818)) "protocol" "TCP") -}}
+{{- $ports = append $ports (dict "name" "enip-udp" "port" (int (.port | default 44818)) "protocol" "UDP") -}}
+{{- $ports = append $ports (dict "name" "enip-io" "port" (int (.io_port | default 2222)) "protocol" "UDP") -}}
+{{- end }}
+{{- end }}
+{{- toJson $ports -}}
+{{- end -}}

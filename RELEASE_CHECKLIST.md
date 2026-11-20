@@ -169,6 +169,10 @@ All must pass before committing:
 - [ ] **Sparkplug B wire format**, `pip install amqtt && python test_sparkplug.py`
       → `15/15`. Asserts payloads are protobuf and **not** JSON, which is the bug
       that hid behind an import guard for the life of the project.
+- [ ] **OT protocol simulators**, `pip install pycomm3 && python test_enip.py`
+      → `4/4`. Drives the EtherNet/IP server with an independent client and raw
+      frames, including implicit I/O. Each protocol added under `protocols/`
+      brings its own `test_<protocol>.py`, listed here.
 - [ ] **Docker build** (optional, CI handles multi-arch), `docker build -t emberburn:X.Y.Z .`
 
 ---
