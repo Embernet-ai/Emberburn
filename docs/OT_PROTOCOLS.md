@@ -20,11 +20,15 @@ enabled.
 | DNP3 | `dnp3_master` | client (polling master) | outbound to the outstation's 20000 | 4.7.0 |
 | IEC 60870-5-104 | `iec104` | server (controlled station) | TCP 2404 | 4.7.0 |
 | IEC 60870-5-104 | `iec104_master` | client (controlling station) | outbound to the station's 2404 | 4.7.0 |
+| IEC 61850 GOOSE | `goose` | publisher (layer 2 multicast) | Ethernet 0x88B8 | 4.8.0 |
+| IEC 61850 GOOSE | `goose_subscriber` | subscriber (layer 2) | Ethernet 0x88B8 | 4.8.0 |
+| PROFINET DCP and RT | `profinet` | device (DCP responder, RT cyclic producer) | Ethernet 0x8892 | 4.8.0 |
+| EtherCAT | `ethercat` | slaves (process data RAM, AL state machine, SII, FMMU) | Ethernet 0x88A4 | 4.8.0 |
+| EtherCAT | `ethercat_master` | master (bus bring-up and cyclic LRW) | Ethernet 0x88A4 | 4.8.0 |
 
-The slices still to come, in this order: PROFINET (DCP, RT and IO-CM), EtherCAT, Omron FINS, GE SRTP, HART-IP, IEC 61850
-(MMS and GOOSE), C37.118, and Modbus RTU over TCP. Layer 2 protocols (PROFINET
-DCP and RT, EtherCAT, GOOSE) need raw sockets, so the container and chart will
-carry `NET_RAW` for them when they ship.
+The slices still to come: the PROFINET IO connection manager (the DCE/RPC Connect
+that sets up an application relationship), Omron FINS, GE SRTP, HART-IP, IEC 61850
+MMS, C37.118, and Modbus RTU over TCP.
 
 ## EtherNet/IP and CIP
 
@@ -127,6 +131,9 @@ pip install python-snap7 && python test_s7.py     # 2/2
 pip install bacpypes3 && python test_bacnet.py    # 2/2
 pip install dnp3py && python test_dnp3.py         # 3/3
 python test_iec104.py                             # 4/4
+sudo python test_goose.py                         # 2/2 (veth pair, root)
+sudo python test_profinet.py                      # 2/2
+sudo python test_ethercat.py                      # 2/2
 ```
 
 ## S7comm
@@ -238,6 +245,63 @@ that does not import the simulator's codec, starting from the byte sequences in 
 standard's examples. Not simulated: double-point and step position information,
 bitstrings, file transfer, parameter commands, TLS (IEC 62351-3), and the t1
 timeout on a silent peer.
+
+## Layer 2 protocols (GOOSE, PROFINET, EtherCAT)
+
+These send and receive raw Ethernet frames, so they need `CAP_NET_RAW`, and they see
+only the Ethernet segment of the interface they bind (`interface`, default the first
+one that is up). In Kubernetes that is the pod's own link: other pods on the node
+bridge see the frames. To put them on a plant segment run the pod with
+`network.hostNetwork: true` and name the node's interface.
+
+The chart carries `NET_RAW` while any of them is enabled. A Kubernetes non-root
+process gets no ambient capability, so a capability added to a non-root container
+never reaches it; the container therefore runs as root with every capability
+dropped except `NET_RAW` and privilege escalation off, only while one of these is
+enabled (`needsRawSockets` in `_helpers.tpl`). With none enabled the container is
+non-root with all capabilities dropped, as before. Files the root container writes to
+the data volume are owned by root; if you turn the layer 2 protocols off again, the
+non-root container cannot rewrite them (the database and tag store), so recreate the
+volume or `chown -R 1000:1000` it first. Outside Kubernetes run as root
+or `setcap cap_net_raw+ep` the Python binary.
+
+### GOOSE
+
+`goose` publishes the `tags` as a GOOSE data set (a bool is BOOLEAN, an int INTEGER, a
+float FLOAT32, a string VISIBLE-STRING) to `dest_mac` (default 01:0C:CD:01:00:01),
+with APPID, gocbRef, datSet, goID and confRev from the config. The first frame is
+stNum 1 sqNum 0; on a change stNum increases, sqNum restarts at 0, and the frame is
+repeated at `min_time_ms`, doubling to `max_time_ms`, which is the heartbeat;
+timeAllowedtoLive is twice that. Frames carry an 802.1Q tag (priority 4).
+`goose_subscriber` receives a control block (`gocb_ref`) and writes entry i into
+`tags[i]` on each new stNum. Not simulated: Sampled Values, R-GOOSE, IEC 62351-6.
+`test_goose.py` reads the frames with a decoder written in the test.
+
+### PROFINET
+
+`profinet` answers DCP Identify (All, NameOfStation, and device ID filters), Get,
+and Set of the name, IP and Signal with the name, vendor, device and vendor ID,
+role, options, MAC and IP block set. With `controller_mac` and `tags` it sends
+Class 1 RT frames (FrameID `frame_id`, default 0xC000, VLAN priority 6) every
+`cycle_ms` with the tag values as IO data, the cycle counter (1/32 ms), data status
+0x35 and transfer status 0. **Not done: the IO connection manager** (DCE/RPC
+Connect, Control, Release on UDP 34964), acyclic records, alarms, LLDP, MRP, IRT. The
+RT frame is device traffic for an analyzer or intrusion detection; a controller
+cannot set up an application relationship with it yet. `test_profinet.py` is the
+check, with a hand written DCP client.
+
+### EtherCAT
+
+`ethercat` is `slave_count` (1 to 8) slaves with a 4 KiB register space and process
+RAM: the ESC type registers, station address, DL status, the AL state machine (INIT,
+PRE-OP, SAFE-OP, OP, with the error bit and status code 0x0011 or 0x001E), the SII
+identity (vendor, product, revision, serial), and FMMUs and SyncManagers that the
+master configures and that decide how LRD, LWR and LRW reach the process data. The
+working counter follows the standard. `tags_in` go to the master (REAL32, INT32 or a
+byte, from 0x1100) and `tags_out` come from it into the tag store. `ethercat_master`
+brings a bus up (scan, addresses, SII, FMMU and SyncManager setup, INIT to OP) and runs
+a cyclic LRW. Not simulated: distributed clocks, CoE, FoE, EoE, ring topology.
+`test_ethercat.py` uses a hand written master.
 
 ### Standards and sources
 

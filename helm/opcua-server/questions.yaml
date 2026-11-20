@@ -261,6 +261,27 @@ questions:
   default: false
   group: "Protocols"
 
+- variable: config.publishers.goose.enabled
+  label: Enable GOOSE (needs NET_RAW)
+  description: "Publish tags as an IEC 61850 GOOSE control block on the pod's Ethernet segment. The container runs as root with only NET_RAW while this is on."
+  type: boolean
+  default: false
+  group: "Protocols"
+
+- variable: config.publishers.profinet.enabled
+  label: Enable PROFINET DCP and RT (needs NET_RAW)
+  description: "Answer PROFINET DCP discovery and send RT cyclic frames. The container runs as root with only NET_RAW while this is on."
+  type: boolean
+  default: false
+  group: "Protocols"
+
+- variable: config.publishers.ethercat.enabled
+  label: Enable EtherCAT slaves (needs NET_RAW)
+  description: "Serve tags as EtherCAT slave process data. The container runs as root with only NET_RAW while this is on."
+  type: boolean
+  default: false
+  group: "Protocols"
+
 - variable: config.publishers.influxdb.enabled
   label: Enable InfluxDB Storage
   description: "Store historical data in InfluxDB"

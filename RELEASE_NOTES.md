@@ -3,6 +3,12 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.7.0, 2026-11-20
+
+EmberBurn can serve its tags as a DNP3 outstation (TCP 20000) and as an IEC
+60870-5-104 controlled station (TCP 2404), and has a polling master for each, for
+protocol analyzer and intrusion detection testing. Off by default, ports above 1024.
+
 ## v4.6.0, 2026-11-20
 
 EmberBurn can serve its tags as a Siemens S7 CPU (S7comm on TCP 102) and as a

@@ -5,6 +5,22 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2026-11-20: Layer 2 Protocols
+
+### Added
+
+- **GOOSE.** `publishers.goose` publishes tags as an IEC 61850 GOOSE control block
+  (stNum, sqNum and the retransmission scheme from the standard), and
+  `goose_subscriber` receives one into tags.
+- **PROFINET DCP and RT.** `publishers.profinet` answers DCP Identify, Get and Set
+  and sends Class 1 RT cyclic frames. The IO connection manager is not done yet.
+- **EtherCAT.** `publishers.ethercat` is up to eight slaves with the AL state
+  machine, SII identity, FMMUs and process data, and `ethercat_master` brings a bus
+  up and runs a cyclic LRW.
+- **The chart carries `NET_RAW`.** Raw sockets need the capability and a non-root
+  process cannot receive an added one, so while one of these is enabled the
+  container runs as root with every capability dropped except `NET_RAW`.
+
 ## [4.7.0] - 2026-11-20: DNP3 And IEC 104
 
 ### Added

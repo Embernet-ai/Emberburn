@@ -224,14 +224,24 @@ spec:
           failureThreshold: {{ .Values.emberburn.readinessProbe.failureThreshold }}
         {{- end }}
         securityContext:
+          {{- if include "emberburn.needsRawSockets" . }}
+          runAsUser: 0
+          runAsGroup: 0
+          runAsNonRoot: false
+          {{- else }}
           runAsUser: {{ .Values.emberburn.securityContext.runAsUser }}
           runAsGroup: {{ .Values.emberburn.securityContext.runAsGroup }}
           runAsNonRoot: {{ .Values.emberburn.securityContext.runAsNonRoot }}
+          {{- end }}
           allowPrivilegeEscalation: {{ .Values.emberburn.securityContext.allowPrivilegeEscalation }}
           readOnlyRootFilesystem: {{ .Values.emberburn.securityContext.readOnlyRootFilesystem }}
           capabilities:
             drop:
               {{- toYaml .Values.emberburn.securityContext.capabilities.drop | nindent 14 }}
+            {{- if include "emberburn.needsRawSockets" . }}
+            add:
+            - NET_RAW
+            {{- end }}
       volumes:
       {{- if .Values.persistence.enabled }}
       - name: data
