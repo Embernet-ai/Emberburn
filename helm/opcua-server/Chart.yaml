@@ -8,11 +8,12 @@ description: |
   Kafka, AMQP, WebSocket, Modbus TCP, InfluxDB, GraphQL, a REST API, an OPC UA
   client, and a Prometheus endpoint. Alarms, SQLite persistence, and data
   transformation ride on top of those. It can also serve the tags as an
-  EtherNet/IP controller, for protocol analyzer and intrusion detection testing.
+  EtherNet/IP controller, an S7 CPU or a BACnet device, for protocol analyzer
+  and intrusion detection testing.
 
 type: application
-version: 4.5.0
-appVersion: "4.5.0"
+version: 4.6.0
+appVersion: "4.6.0"
 
 keywords:
   - opcua
@@ -58,7 +59,7 @@ annotations:
   catalog.cattle.io/featured: "true"
 
   # Documentation links
-  catalog.cattle.io/upstream-version: "4.5.0"
+  catalog.cattle.io/upstream-version: "4.6.0"
   fireball.industries/project-type: "industrial-iot-gateway"
   fireball.industries/protocols: "12"
   fireball.industries/web-ui: "true"

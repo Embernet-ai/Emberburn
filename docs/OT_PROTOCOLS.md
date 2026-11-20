@@ -14,8 +14,10 @@ enabled.
 |---|---|---|---|---|
 | EtherNet/IP and CIP | `ethernet_ip` | server (Logix style controller, implicit I/O producer and consumer) | TCP and UDP 44818, UDP 2222 | 4.5.0 |
 | EtherNet/IP and CIP | `ethernet_ip_client` | client (writes tags to, and polls tags from, a controller) | outbound to the target's 44818 | 4.5.0 |
+| S7comm | `s7comm` | server (Siemens S7 CPU, tags in data blocks) | TCP 102 | 4.6.0 |
+| BACnet/IP | `bacnet` | server (one device, one object per tag) | UDP 47808 | 4.6.0 |
 
-The slices still to come, in this order: DNP3, S7comm, BACnet/IP, IEC 60870-5-104,
+The slices still to come, in this order: DNP3, IEC 60870-5-104,
 then PROFINET (DCP, RT and IO-CM), EtherCAT, Omron FINS, GE SRTP, HART-IP, IEC 61850
 (MMS and GOOSE), C37.118, and Modbus RTU over TCP. Layer 2 protocols (PROFINET
 DCP and RT, EtherCAT, GOOSE) need raw sockets, so the container and chart will
@@ -118,7 +120,58 @@ error.
 ```
 pip install pycomm3
 python test_enip.py     # 4/4
+pip install python-snap7 && python test_s7.py     # 2/2
+pip install bacpypes3 && python test_bacnet.py    # 2/2
 ```
+
+## S7comm
+
+```json
+"s7comm": { "enabled": true, "port": 102, "db": 1, "db_size": 1024, "dbs": [2],
+            "string_length": 32,
+            "tag_mapping": { "Temperature": { "db": 1, "offset": 0, "type": "REAL" },
+                             "Run": { "db": 1, "offset": 8, "bit": 0, "type": "BOOL" } } }
+```
+
+Tags are placed in data block `db` in the order they are first seen, or at the
+`offset` (and `bit`) given in `tag_mapping`. REAL and DINT are 4 bytes, INT 2,
+LREAL 8, all big endian; BOOLs share bytes bit by bit; a STRING is the S7 string
+(max length, length, characters). A float tag is a REAL, an int a DINT, a bool a
+BOOL, a string a STRING. A client write to a data block goes back into the tag
+store. `dbs` lists extra data blocks to serve. The server is python-snap7 (MIT),
+whose CPU identity is an S7-300; the module maps data block bytes to tags.
+
+Port 102 is below 1024. The chart sets the pod sysctl
+`net.ipv4.ip_unprivileged_port_start=0` while it is enabled, so the container
+stays non-root with every capability dropped. Outside Kubernetes, set `port` above
+1024 or give the process the privilege.
+
+Not simulated: PLC programming functions (block upload and download, run and
+stop control), the S7comm-plus protocol of S7-1200 and S7-1500 (a different
+protocol on the same port), and anything but data blocks as memory areas.
+`test_s7.py` is the check: a snap7 client reads every type, sees a live change,
+writes, and the write reaches the tag store.
+
+## BACnet/IP
+
+```json
+"bacnet": { "enabled": true, "host": "0.0.0.0", "port": 47808, "prefix": 24,
+            "device_instance": 1234, "device_name": "EmberBurn",
+            "tag_mapping": { "Temperature": { "units": "degreesCelsius", "instance": 10 } } }
+```
+
+One BACnet device on UDP 47808. A float or int tag is an Analog Value, a bool a
+Binary Value, a string a Character String Value; `tag_mapping` sets `type`
+(`AV`, `BV`, `CSV`), `instance`, `name`, `description` and `units`. Who-Is and
+I-Am, ReadProperty, ReadPropertyMultiple, WriteProperty and the object list work,
+and a WriteProperty reaches the tag store. `host` 0.0.0.0 means the pod's primary
+address, and `prefix` sets its broadcast domain, so Who-Is broadcasts on that
+subnet find it. The stack is bacpypes3 (MIT).
+
+Not simulated: COV subscriptions, alarms and events, schedules, trend logs,
+BACnet/SC, and routing between networks. `test_bacnet.py` is the check: a
+bacpypes3 client discovers the device, reads the object list and each object
+type, sees a live change and writes.
 
 ### Standards and sources
 

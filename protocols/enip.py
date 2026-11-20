@@ -59,6 +59,14 @@ ENCAP_BAD_SESSION = 0x0064
 ENCAP_BAD_LENGTH = 0x0065
 ENCAP_BAD_VERSION = 0x0069
 
+# Reply body for a SendRRData or SendUnitData that fails at the encapsulation layer:
+# interface handle 0, timeout 0, zero common packet format items. Well formed for an
+# analyzer (the command specific data is present and parses) without carrying a
+# CIP message, which an error reply has none to carry. This used to echo the
+# request's own items, so a request travelled in a reply and Zeek logged a CIP
+# response with no status.
+EMPTY_CPF_BODY = struct.pack("<IHH", 0, 0, 0)
+
 HDR = struct.Struct("<HHII8sI")  # command, length, session, status, context, options
 
 # common packet format item types (Vol 2 2-6.1)
@@ -461,11 +469,11 @@ class EnipDevice:
             return None
         if cmd in (CMD_SEND_RR_DATA, CMD_SEND_UNIT_DATA):
             if session not in self.sessions:
-                return self.encap(cmd, session, ENCAP_BAD_SESSION, ctx, data)  # echo the request: analyzers expect the CPF body
+                return self.encap(cmd, session, ENCAP_BAD_SESSION, ctx, EMPTY_CPF_BODY)
             try:
                 return self._send_data(cmd, session, ctx, data, state)
             except CipError:
-                return self.encap(cmd, session, ENCAP_BAD_DATA, ctx, data)
+                return self.encap(cmd, session, ENCAP_BAD_DATA, ctx, EMPTY_CPF_BODY)
         return self.encap(cmd, session, ENCAP_UNSUPPORTED, ctx, b"")
 
     def drop_session(self, session: int):

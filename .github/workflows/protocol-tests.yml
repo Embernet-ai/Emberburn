@@ -11,6 +11,8 @@ on:
       - 'protocols/**'
       - 'publishers.py'
       - 'test_enip.py'
+      - 'test_s7.py'
+      - 'test_bacnet.py'
       - 'requirements.txt'
       - '.github/workflows/protocol-tests.yml'
   pull_request:
@@ -18,6 +20,8 @@ on:
       - 'protocols/**'
       - 'publishers.py'
       - 'test_enip.py'
+      - 'test_s7.py'
+      - 'test_bacnet.py'
       - 'requirements.txt'
       - '.github/workflows/protocol-tests.yml'
   workflow_dispatch:
@@ -42,3 +46,13 @@ jobs:
           set -o pipefail
           python test_enip.py | tee /tmp/enip.log
           grep -q '^4/4$' /tmp/enip.log
+      - name: S7comm
+        run: |
+          set -o pipefail
+          python test_s7.py | tee /tmp/s7.log
+          grep -q '^2/2$' /tmp/s7.log
+      - name: BACnet/IP
+        run: |
+          set -o pipefail
+          python test_bacnet.py | tee /tmp/bacnet.log
+          grep -q '^2/2$' /tmp/bacnet.log

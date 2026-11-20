@@ -165,5 +165,30 @@ Port names are at most 15 characters (IANA service name rule), unique in the pod
 {{- $ports = append $ports (dict "name" "enip-io" "port" (int (.io_port | default 2222)) "protocol" "UDP") -}}
 {{- end }}
 {{- end }}
+{{- with $p.s7comm }}
+{{- if .enabled }}
+{{- $ports = append $ports (dict "name" "s7comm" "port" (int (.port | default 102)) "protocol" "TCP") -}}
+{{- end }}
+{{- end }}
+{{- with $p.bacnet }}
+{{- if .enabled }}
+{{- $ports = append $ports (dict "name" "bacnet" "port" (int (.port | default 47808)) "protocol" "UDP") -}}
+{{- end }}
+{{- end }}
 {{- toJson $ports -}}
+{{- end -}}
+
+{{/*
+True (the string "true") when an enabled simulated protocol listens below port
+1024. The container runs non-root with every capability dropped, and a
+Kubernetes non-root process gets no ambient capability, so NET_BIND_SERVICE
+would not help. The pod sets the net.ipv4.ip_unprivileged_port_start sysctl
+instead, a namespaced safe sysctl, which keeps the container context unchanged.
+*/}}
+{{- define "emberburn.needsLowPorts" -}}
+{{- $low := false -}}
+{{- range (include "emberburn.otPorts" . | fromJsonArray) }}
+{{- if lt (int .port) 1024 }}{{- $low = true -}}{{- end }}
+{{- end }}
+{{- if $low }}true{{- end -}}
 {{- end -}}

@@ -48,3 +48,9 @@ cryptography>=48.0.1    # GHSA-537c-gmf6-5ccf
 # The EtherNet/IP SERVER (protocols/enip.py) needs no library: the only server
 # library, cpppo, is GPLv3 or proprietary and cannot be linked into this MIT code.
 pycomm3>=1.2.16,<2.0.0
+
+# S7comm simulator (protocols/s7.py): the S7 server. MIT, pure Python since 3.x.
+python-snap7>=3.6.0,<4.0.0
+# BACnet/IP simulator (protocols/bacnet.py): BVLL, NPDU, APDU and the object
+# model. MIT per its package metadata.
+bacpypes3>=0.1.0,<0.2.0

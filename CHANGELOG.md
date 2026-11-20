@@ -5,6 +5,29 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.0] - 2026-11-20: S7comm And BACnet
+
+### Added
+
+- **EmberBurn serves its tags as a Siemens S7 CPU.** Enable `publishers.s7comm`
+  and the tags live in a data block on TCP 102, readable and writable by any
+  S7comm client; a write goes back into the tag store. python-snap7 (MIT) is the
+  protocol server.
+- **EmberBurn serves its tags as a BACnet/IP device.** Enable `publishers.bacnet`
+  and each tag is an Analog, Binary or Character String Value object on UDP
+  47808, with Who-Is, ReadProperty, ReadPropertyMultiple and WriteProperty.
+  bacpypes3 (MIT) is the stack.
+- **The error reply to an unregistered EtherNet/IP session no longer echoes the
+  request.** A SendRRData or SendUnitData with a session handle nobody registered
+  was answered with the request's own items in the reply body, so a request
+  travelled in a reply and Zeek logged a CIP response with no status. The reply
+  now carries the interface handle, timeout and zero items. `test_enip.py` asserts
+  it and fails on the old framing, and checks the general status, additional
+  status size (in words) and data framing of the CIP error replies.
+- **The chart carries both.** Port 102 is privileged, so the pod sets the
+  `net.ipv4.ip_unprivileged_port_start` sysctl while S7comm is enabled; the
+  container stays non-root with every capability dropped.
+
 ## [4.5.0] - 2026-11-20: EtherNet/IP
 
 ### Added
