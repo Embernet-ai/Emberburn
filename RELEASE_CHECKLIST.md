@@ -172,7 +172,9 @@ All must pass before committing:
 - [ ] **OT protocol simulators**, `pip install pycomm3 && python test_enip.py`
       → `4/4`. Drives the EtherNet/IP server with an independent client and raw
       frames, including implicit I/O. Each protocol added under `protocols/`
-      brings its own `test_<protocol>.py`, listed here.
+      brings its own `test_<protocol>.py`, listed here:
+      `pip install python-snap7 && python test_s7.py` → `2/2`,
+      `pip install bacpypes3 && python test_bacnet.py` → `2/2`.
 - [ ] **Docker build** (optional, CI handles multi-arch), `docker build -t emberburn:X.Y.Z .`
 
 ---

@@ -13,6 +13,8 @@ const PROTOCOL_ICONS = {
     'InfluxDB': '📊',
     'MODBUS TCP': '🔧',
     'EtherNet/IP': '🏭',
+    'S7comm': '🏭',
+    'BACnet/IP': '🏢',
     'EtherNet/IP Client': '🏭',
     'OPC UA Client': '🔗',
     'Alarms': '🚨',

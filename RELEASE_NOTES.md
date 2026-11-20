@@ -3,6 +3,15 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.5.0, 2026-11-20
+
+EmberBurn can serve its tags over EtherNet/IP and CIP as a Logix style
+controller, on TCP and UDP 44818 with implicit I/O on UDP 2222, and can act as the
+EtherNet/IP scanner toward another controller. It exists so protocol analyzers
+and intrusion detection have realistic device traffic to look at. Off by default;
+see `docs/OT_PROTOCOLS.md`. The release checklist now says squash merge, then tag
+`main`.
+
 ## v4.4.30, 2026-10-22
 
 The chart's maintainer is `patrick@fireballz.ai`. `Chart.yaml` carried the old

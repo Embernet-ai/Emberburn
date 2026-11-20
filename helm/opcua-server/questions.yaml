@@ -226,6 +226,27 @@ questions:
       type: int
       default: 2222
 
+- variable: config.publishers.s7comm.enabled
+  label: Enable S7comm
+  description: "Serve the tags as data block variables of a Siemens S7 CPU (TCP 102)"
+  type: boolean
+  default: false
+  group: "Protocols"
+
+- variable: config.publishers.bacnet.enabled
+  label: Enable BACnet/IP
+  description: "Serve the tags as objects of a BACnet/IP device (UDP 47808)"
+  type: boolean
+  default: false
+  group: "Protocols"
+  show_subquestion_if: true
+  subquestions:
+    - variable: config.publishers.bacnet.device_instance
+      label: Device Instance
+      description: "BACnet device instance number"
+      type: int
+      default: 1234
+
 - variable: config.publishers.influxdb.enabled
   label: Enable InfluxDB Storage
   description: "Store historical data in InfluxDB"

@@ -36,7 +36,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.5.0"
+    tag: "4.6.0"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
@@ -275,6 +275,27 @@ config:
         revision_minor: 11
         product_name: "1756-L83E/B"
       assembly_output_size: 32
+
+    # S7comm: a Siemens S7 CPU serving the tags as data block variables.
+    # Port 102 is the standard and is below 1024: while this is enabled the pod
+    # sets the net.ipv4.ip_unprivileged_port_start sysctl (see _helpers.tpl), the
+    # container stays non-root with all capabilities dropped.
+    s7comm:
+      enabled: false
+      port: 102
+      db: 1
+      db_size: 1024
+      string_length: 32
+
+    # BACnet/IP: a BACnet device with one object per tag, UDP 47808. host
+    # 0.0.0.0 means the pod's primary address; prefix sets its broadcast domain.
+    bacnet:
+      enabled: false
+      host: "0.0.0.0"
+      port: 47808
+      prefix: 24
+      device_instance: 1234
+      device_name: "EmberBurn"
 
     # GraphQL API
     graphql:

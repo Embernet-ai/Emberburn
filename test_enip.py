@@ -85,6 +85,20 @@ def rr(sock, session, cip, extra_items=()):
     return dict(items)
 
 
+def assert_cip_reply_framing(resp, service):
+    """CIP reply framing (Vol 1 3-2.2): reply service, reserved 0, general status,
+    additional status size in 16 bit WORDS, that many words, then the data. A reply
+    that omits the general status byte, or counts the additional status in bytes,
+    shifts every byte after it."""
+    assert len(resp) >= 4, resp.hex()
+    assert resp[0] == service | 0x80 and resp[1] == 0, resp.hex()
+    ext_words = resp[3]
+    assert len(resp) >= 4 + 2 * ext_words, resp.hex()
+    if resp[2] == 0:
+        assert ext_words == 0, resp.hex()
+    return resp[2], resp[4:4 + 2 * ext_words], resp[4 + 2 * ext_words:]
+
+
 def forward_open_class1(serial, to_port, rpi=20000, to_size=2 + 16, ot_size=4 + 8 + 2):
     path = bytes([0x20, 0x04, 0x24, 0x01, 0x2C, 101, 0x2C, 100])
     params_ot = 0x4000 | ot_size            # point to point, fixed
@@ -173,15 +187,24 @@ def check_raw(pub):
         sym = b"\x91" + bytes([9]) + b"NoSuchTag" + b"\x00"
         resp = rr(s, session, bytes([0x4C, len(sym) // 2]) + sym + struct.pack("<H", 1))[0x00B2]
         assert resp[2] == 0x04, resp.hex()
+        st, ext, rest = assert_cip_reply_framing(resp, 0x4C)
+        assert ext == b"\x00\x00" and rest == b"", resp.hex()
         # Write Tag with the wrong data type is refused, not coerced
         sym = b"\x91" + bytes([len("Plant_Line1_Counter")]) + b"Plant_Line1_Counter" + b"\x00"
         req = bytes([0x4D, len(sym) // 2]) + sym + struct.pack("<HH", 0xCA, 1) + struct.pack("<f", 1.0)
         resp = rr(s, session, req)[0x00B2]
         assert resp[2] == 0xFF and resp[4:6] == struct.pack("<H", 0x2107), resp.hex()
+        st, ext, rest = assert_cip_reply_framing(resp, 0x4D)
+        assert ext == struct.pack("<H", 0x2107) and rest == b"", resp.hex()
         # a session handle nobody registered is refused
         s.sendall(encap(CMD_SEND_RR_DATA, 0xDEAD, struct.pack("<IH", 0, 10) + cpf_encode([(0, b""), (0xB2, b"\x0e\x00")])))
-        _, _, status, _ = read_frame(s)
+        _, _, status, body = read_frame(s)
         assert status == enip.ENCAP_BAD_SESSION, status
+        # the error reply carries no CIP message: it used to echo the request's
+        # items, so a request travelled in a reply (Zeek logged it as a CIP
+        # response with no status). Zero items now, and the body still parses.
+        assert body == enip.EMPTY_CPF_BODY, body.hex()
+        assert cpf_decode(body[6:]) == []
 
         # Forward Open class 1: the target must stream T->O data to our UDP port
         rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

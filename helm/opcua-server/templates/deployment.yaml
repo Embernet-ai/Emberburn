@@ -77,6 +77,11 @@ spec:
       {{- end }}
       securityContext:
         fsGroup: {{ .Values.emberburn.securityContext.fsGroup }}
+        {{- if include "emberburn.needsLowPorts" . }}
+        sysctls:
+        - name: net.ipv4.ip_unprivileged_port_start
+          value: "0"
+        {{- end }}
       containers:
       - name: emberburn
         image: "{{ .Values.emberburn.image.repository }}:{{ .Values.emberburn.image.tag }}"

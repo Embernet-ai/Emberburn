@@ -12,6 +12,8 @@ use it. REGISTRY maps the publisher config key to (module, class).
 
 REGISTRY = {
     "ethernet_ip": ("protocols.enip", "EtherNetIPPublisher"),
+    "s7comm": ("protocols.s7", "S7CommPublisher"),
+    "bacnet": ("protocols.bacnet", "BACnetPublisher"),
     "ethernet_ip_client": ("protocols.enip_client", "EtherNetIPClientPublisher"),
 }
 
@@ -21,9 +23,13 @@ REGISTRY = {
 DISPLAY_NAMES = {
     "EtherNetIP": "EtherNet/IP",
     "EtherNetIPClient": "EtherNet/IP Client",
+    "S7Comm": "S7comm",
+    "BACnet": "BACnet/IP",
 }
 
 DESCRIPTIONS = {
     "EtherNet/IP": "Serves tags as a Logix style EtherNet/IP and CIP device on TCP and UDP 44818, with implicit I/O on UDP 2222",
+    "S7comm": "Serves tags as data block variables of a Siemens S7 CPU over ISO on TCP 102",
+    "BACnet/IP": "Serves tags as Analog, Binary and Character String Value objects of a BACnet/IP device on UDP 47808",
     "EtherNet/IP Client": "Writes tags to, and polls tags from, a remote EtherNet/IP controller",
 }
