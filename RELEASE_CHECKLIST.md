@@ -176,7 +176,9 @@ All must pass before committing:
       `pip install python-snap7 && python test_s7.py` → `2/2`,
       `pip install bacpypes3 && python test_bacnet.py` → `2/2`,
       `pip install dnp3py && python test_dnp3.py` → `3/3`,
-      `python test_iec104.py` → `4/4`.
+      `python test_iec104.py` → `4/4`, and the layer 2 tests, which create a veth pair
+      and need root (`sudo python test_goose.py`, `test_profinet.py`,
+      `test_ethercat.py`, each `2/2`).
 - [ ] **Docker build** (optional, CI handles multi-arch), `docker build -t emberburn:X.Y.Z .`
 
 ---

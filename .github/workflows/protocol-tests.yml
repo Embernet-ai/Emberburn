@@ -15,6 +15,9 @@ on:
       - 'test_bacnet.py'
       - 'test_dnp3.py'
       - 'test_iec104.py'
+      - 'test_goose.py'
+      - 'test_profinet.py'
+      - 'test_ethercat.py'
       - 'requirements.txt'
       - '.github/workflows/protocol-tests.yml'
   pull_request:
@@ -26,6 +29,9 @@ on:
       - 'test_bacnet.py'
       - 'test_dnp3.py'
       - 'test_iec104.py'
+      - 'test_goose.py'
+      - 'test_profinet.py'
+      - 'test_ethercat.py'
       - 'requirements.txt'
       - '.github/workflows/protocol-tests.yml'
   workflow_dispatch:
@@ -70,3 +76,10 @@ jobs:
           set -o pipefail
           python test_iec104.py | tee /tmp/iec104.log
           grep -q '^4/4$' /tmp/iec104.log
+      - name: Layer 2 (GOOSE, PROFINET, EtherCAT)
+        run: |
+          set -o pipefail
+          for t in test_goose test_profinet test_ethercat; do
+            sudo -E env "PATH=$PATH" python $t.py | tee /tmp/$t.log
+            grep -q '^2/2$' /tmp/$t.log
+          done

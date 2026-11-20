@@ -36,7 +36,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.7.0"
+    tag: "4.8.0"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
@@ -316,6 +316,57 @@ config:
       common_address: 1
       deadband: 0.5
       cyclic_seconds: 0
+
+    # ── Layer 2 protocols (Ethernet frames, need NET_RAW) ───────────────────
+    # While any of these is enabled the container runs as root with every
+    # capability dropped except NET_RAW (see needsRawSockets in _helpers.tpl). They
+    # reach the pod's own Ethernet segment; to put frames on a plant segment set
+    # network.hostNetwork: true and name the node's interface in `interface`.
+    #
+    # GOOSE (IEC 61850) publisher: tags is the data set, in order.
+    goose:
+      enabled: false
+      interface: ""            # empty: the first interface that is up
+      dest_mac: "01:0C:CD:01:00:01"
+      appid: 1
+      gocb_ref: "EmberBurnIED/LLN0$GO$gcb01"
+      dat_set: "EmberBurnIED/LLN0$DataSet1"
+      go_id: "EmberBurnGOOSE1"
+      conf_rev: 1
+      min_time_ms: 8
+      max_time_ms: 1000
+      tags: []
+    goose_subscriber:
+      enabled: false
+      interface: ""
+      dest_mac: "01:0C:CD:01:00:01"
+      gocb_ref: ""
+      tags: []
+    # PROFINET: DCP responder, plus RT cyclic frames when controller_mac and tags are set.
+    profinet:
+      enabled: false
+      interface: ""
+      station_name: "emberburn"
+      vendor_name: "EmberBurn"
+      vendor_id: 0
+      device_id: 1
+      controller_mac: ""
+      tags: []
+      cycle_ms: 32
+    # EtherCAT slaves, and the master.
+    ethercat:
+      enabled: false
+      interface: ""
+      slave_count: 1
+      tags_in: []
+      tags_out: []
+    ethercat_master:
+      enabled: false
+      interface: ""
+      tags_out: []
+      input_bytes: 8
+      output_bytes: 8
+      cycle_ms: 10
 
     # GraphQL API
     graphql:

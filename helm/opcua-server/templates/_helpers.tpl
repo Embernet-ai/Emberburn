@@ -202,3 +202,21 @@ instead, a namespaced safe sysctl, which keeps the container context unchanged.
 {{- end }}
 {{- if $low }}true{{- end -}}
 {{- end -}}
+
+{{/*
+True (the string "true") when an enabled protocol needs a raw Ethernet socket
+(GOOSE, PROFINET, EtherCAT). AF_PACKET needs CAP_NET_RAW in the process's effective
+set, and Kubernetes gives a non-root process no ambient capability, so a capability
+added to a non-root container never reaches it. The container therefore runs as
+root with every capability dropped except NET_RAW and privilege escalation off,
+only while one of these is enabled. See docs/OT_PROTOCOLS.md.
+*/}}
+{{- define "emberburn.needsRawSockets" -}}
+{{- $p := .Values.config.publishers -}}
+{{- $raw := false -}}
+{{- range $k := list "goose" "goose_subscriber" "profinet" "ethercat" "ethercat_master" }}
+{{- $v := index $p $k }}
+{{- if and $v $v.enabled }}{{- $raw = true -}}{{- end }}
+{{- end }}
+{{- if $raw }}true{{- end -}}
+{{- end -}}
