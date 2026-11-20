@@ -72,7 +72,7 @@ jobs:
         run: |
           set -o pipefail
           python test_dnp3.py | tee /tmp/dnp3.log
-          grep -q '^3/3$' /tmp/dnp3.log
+          grep -q '^4/4$' /tmp/dnp3.log
       - name: IEC 60870-5-104
         run: |
           set -o pipefail
