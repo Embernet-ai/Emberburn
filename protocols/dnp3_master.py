@@ -8,6 +8,15 @@ intrusion detection sensor the master side of a DNP3 conversation.
 
 Uses dnp3py (MIT, https://github.com/craigpnnl/dnp3py) for the protocol, the same
 library as the outstation. It only reads; it sends no control.
+
+Link layer order: the master sends Reset of Remote Link and waits for the
+outstation's ACK before its first request. dnp3py's own runner sends the reset and
+the first Read back to back and consumes the ACK later ("advisory"), so the Read
+reaches the wire before the ACK that confirms the reset. A real master, and an
+analyzer that follows the link layer state (Zeek's DNP3 analyzers logged only the
+second poll of a capture like that), expect the confirmed reset to complete first.
+So the runner is opened with its own reset turned off and the reset and the wait
+are done here (`_link_reset`).
 """
 import asyncio
 import logging
@@ -15,6 +24,8 @@ import threading
 from typing import Any, Dict, Optional
 
 from protocols.base import SimProtocolPublisher
+
+LINK_RESET_TIMEOUT = 3.0
 
 
 class DNP3MasterPublisher(SimProtocolPublisher):
@@ -47,7 +58,7 @@ class DNP3MasterPublisher(SimProtocolPublisher):
         self.logger.info("DNP3 master publisher stopped")
 
     async def _main(self):
-        from dnp3.master import DefaultSOEHandler, Master, MasterConfig, MasterTcpRunner
+        from dnp3.master import DefaultSOEHandler, LinkResetPolicy, Master, MasterConfig, MasterTcpRunner
 
         host = str(self.config["host"])
         port = int(self.config.get("port", 20000))
@@ -59,7 +70,9 @@ class DNP3MasterPublisher(SimProtocolPublisher):
                 master = Master(handler=handler, config=MasterConfig(
                     address=int(self.config.get("address", 1)),
                     outstation_address=int(self.config.get("outstation_address", 10))))
-                async with MasterTcpRunner(master=master, host=host, port=port) as runner:
+                async with MasterTcpRunner(master=master, host=host, port=port,
+                                           link_reset=LinkResetPolicy.NEVER) as runner:
+                    await self._link_reset(runner, master)
                     self.unavailable_reason = None
                     delay = 2.0
                     self.logger.info(f"DNP3 master connected to {host}:{port}")
@@ -75,6 +88,40 @@ class DNP3MasterPublisher(SimProtocolPublisher):
                 self.logger.warning(f"DNP3 master {self.unavailable_reason}")
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60.0)
+
+    async def _link_reset(self, runner, master):
+        """Reset Remote Link, then wait for the outstation's ACK (IEEE 1815-2012 data
+        link layer: the reset is a confirmed primary function, so the primary waits for
+        the secondary's confirmation before the next transaction). A NACK, a timeout or
+        a closed link is logged and the session goes on, as a master with a silent
+        outstation would."""
+        from dnp3.core.enums import LinkFunctionCode
+        from dnp3.datalink.builder import build_reset_link_state
+        from dnp3.datalink.parser import FrameParser
+
+        cfg = master.config
+        channel = runner.channel
+        await channel.write_all(build_reset_link_state(destination=cfg.outstation_address, source=cfg.address,
+                                                       dir_from_master=True).to_bytes())
+        parser = FrameParser()
+        deadline = asyncio.get_running_loop().time() + LINK_RESET_TIMEOUT
+        while True:
+            left = deadline - asyncio.get_running_loop().time()
+            if left <= 0:
+                self.logger.warning("DNP3 master: no ACK to the link reset, carrying on")
+                return
+            try:
+                data = await asyncio.wait_for(channel.read(4096), timeout=left)
+            except asyncio.TimeoutError:
+                continue
+            if not data:
+                raise ConnectionError("outstation closed the link during the reset")
+            for frame in parser.feed(data):
+                if not frame.header.control.prm:
+                    if frame.header.control.function_code == LinkFunctionCode.SEC_ACK:
+                        return
+                    self.logger.warning("DNP3 master: link reset was not acknowledged (NACK), carrying on")
+                    return
 
     def _collect(self, handler):
         for kind in ("binary_inputs", "analog_inputs", "counters", "binary_outputs", "analog_outputs"):

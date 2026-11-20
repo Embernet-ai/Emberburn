@@ -21,6 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   process cannot receive an added one, so while one of these is enabled the
   container runs as root with every capability dropped except `NET_RAW`.
 
+### Fixed
+
+- **The DNP3 master waits for the ACK to its link reset.** dnp3py's own runner sends
+  Reset of Remote Link and the first Read back to back, so the Read reached the
+  wire before the ACK that confirms the reset. Zeek's DNP3 analyzer then logged
+  only the second poll of a capture. The master now sends the reset, waits for the
+  ACK, and only then sends its first request; `test_dnp3.py` holds the ACK back
+  and fails if any request arrives first.
+- **The Modbus TCP publisher never started on pymodbus 3.16.** Its imports used
+  names that no longer exist, so the publisher disabled itself with a "library not
+  available" warning and port 502 never opened. It now uses pymodbus's SimDevice
+  and `ModbusTcpServer` API, reports a port it cannot bind instead of dying in its
+  thread, and `requirements.txt` pins pymodbus to the range it was checked on
+  (3.16.2 up to 4.0). `test_modbus.py` starts the real gateway and reads a
+  register with a hand built Modbus TCP frame, and fails on the old code. New
+  setting `unit_id` (default 1): the server answers that unit id.
+
 ## [4.7.0] - 2026-11-20: DNP3 And IEC 104
 
 **Merged to `main` but never tagged: there is no v4.7.0 image, chart or GitHub Release. These changes first ship in 4.8.0.**
