@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.7.0] - 2026-11-20: DNP3 And IEC 104
 
+**Merged to `main` but never tagged: there is no v4.7.0 image, chart or GitHub Release. These changes first ship in 4.8.0.**
+
 ### Added
 
 - **EmberBurn serves its tags as a DNP3 outstation.** Enable `publishers.dnp3`:
@@ -39,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The chart carries both** (container ports and the `<release>-ot` Service).
 
 ## [4.6.0] - 2026-11-20: S7comm And BACnet
+
+**Merged to `main` but never tagged: there is no v4.6.0 image, chart or GitHub Release. These changes first ship in 4.8.0.**
 
 ### Added
 
@@ -62,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   container stays non-root with every capability dropped.
 
 ## [4.5.0] - 2026-11-20: EtherNet/IP
+
+**Merged to `main` but never tagged: there is no v4.5.0 image, chart or GitHub Release. These changes first ship in 4.8.0.**
 
 ### Added
 

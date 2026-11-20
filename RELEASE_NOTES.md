@@ -3,29 +3,23 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
-## v4.7.0, 2026-11-20
+## v4.5.0 through v4.7.0, merged and never tagged
 
-EmberBurn can serve its tags as a DNP3 outstation (TCP 20000) and as an IEC
-60870-5-104 controlled station (TCP 2404), and has a polling master for each, for
-protocol analyzer and intrusion detection testing. Off by default, ports above 1024.
+I merged 4.5.0, 4.6.0 and 4.7.0 to `main` and never pushed a tag for any of them, so
+none has an image, a chart or a GitHub Release. The last tag is v4.4.30. Everything
+below first ships in 4.8.0, which is the next tag.
 
-## v4.6.0, 2026-11-20
+## v4.7.0 (merged, never tagged, first ships in 4.8.0)
 
-EmberBurn can serve its tags as a Siemens S7 CPU (S7comm on TCP 102) and as a
-BACnet/IP device (UDP 47808), for protocol analyzer and intrusion detection
-testing. Both are off by default. Port 102 is privileged, so the pod sets one
-sysctl while S7comm is on and the container stays non-root with every capability
-dropped. The reply to an EtherNet/IP request with an unregistered session no
-longer echoes the request.
+A DNP3 outstation on TCP 20000 and an IEC 60870-5-104 controlled station on TCP 2404, with a polling master for each.
 
-## v4.5.0, 2026-11-20
+## v4.6.0 (merged, never tagged, first ships in 4.8.0)
 
-EmberBurn can serve its tags over EtherNet/IP and CIP as a Logix style
-controller, on TCP and UDP 44818 with implicit I/O on UDP 2222, and can act as the
-EtherNet/IP scanner toward another controller. It exists so protocol analyzers
-and intrusion detection have realistic device traffic to look at. Off by default;
-see `docs/OT_PROTOCOLS.md`. The release checklist now says squash merge, then tag
-`main`.
+A Siemens S7 CPU (S7comm, TCP 102) and a BACnet/IP device (UDP 47808), and the EtherNet/IP reply to an unregistered session no longer echoes the request.
+
+## v4.5.0 (merged, never tagged, first ships in 4.8.0)
+
+An EtherNet/IP and CIP controller on TCP and UDP 44818 with implicit I/O on UDP 2222, and an EtherNet/IP scanner. The release checklist now says squash, then tag `main`.
 
 ## v4.4.30, 2026-10-22
 
