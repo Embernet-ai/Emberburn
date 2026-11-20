@@ -65,6 +65,7 @@ def check_wire():
     class Catch(logging.Handler):
         def emit(self, record):
             seen.append((record.levelno, record.getMessage()))
+    pub.logger.setLevel(logging.INFO)
     pub.logger.addHandler(Catch())
     for name, value in (("Plant/Temp", 21.5), ("Plant/Run", True), ("Plant/Level", 41),
                         ("Plant/Count", 5), ("Plant/Valve", False), ("Plant/Setpoint", 12.5)):
