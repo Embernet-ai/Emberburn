@@ -129,7 +129,7 @@ pip install pycomm3
 python test_enip.py     # 4/4
 pip install python-snap7 && python test_s7.py     # 2/2
 pip install bacpypes3 && python test_bacnet.py    # 2/2
-pip install dnp3py && python test_dnp3.py         # 3/3
+pip install dnp3py && python test_dnp3.py         # 4/4
 python test_iec104.py                             # 4/4
 sudo python test_goose.py                         # 2/2 (veth pair, root)
 sudo python test_profinet.py                      # 2/2

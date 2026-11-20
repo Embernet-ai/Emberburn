@@ -51,14 +51,25 @@ try:
 except ImportError:
     WEBSOCKET_AVAILABLE = False
 
+import struct
+import asyncio
+
+# pymodbus 3.16 deprecated the datastore classes this publisher was written against
+# (ModbusSlaveContext, ModbusServerContext(slaves=...), device.setValues) and then
+# dropped their methods, and moved ModbusDeviceIdentification to pymodbus.pdu.device.
+# On 3.16 the old imports raised ImportError, MODBUS_AVAILABLE went False and the
+# publisher never started, with only a "library not available" warning. It uses the
+# SimDevice / SimData model and ModbusTcpServer.async_setValues now, which is the
+# supported API (https://pymodbus.readthedocs.io/en/dev/source/upgrade_40.html).
+# requirements.txt pins pymodbus to the range this was checked against.
 try:
-    from pymodbus.server import StartTcpServer
-    from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
-    from pymodbus.device import ModbusDeviceIdentification
-    import struct
+    from pymodbus.server import ModbusTcpServer
+    from pymodbus.simulator import DataType, SimData, SimDevice
+    from pymodbus.pdu.device import ModbusDeviceIdentification
     MODBUS_AVAILABLE = True
-except ImportError:
+except ImportError as _modbus_import_error:
     MODBUS_AVAILABLE = False
+    MODBUS_IMPORT_ERROR = str(_modbus_import_error)
 
 try:
     from opcua import Client as OPCUAClient
@@ -2017,12 +2028,14 @@ class ModbusTCPPublisher(DataPublisher):
     def __init__(self, config: Dict[str, Any], logger: Optional[logging.Logger] = None):
         super().__init__(config, logger)
         if not MODBUS_AVAILABLE:
-            self.logger.warning("MODBUS library not available. Install with: pip install pymodbus")
+            self.logger.warning(f"MODBUS library not available ({globals().get('MODBUS_IMPORT_ERROR', 'import failed')}). Install with: pip install pymodbus")
             self.enabled = False
             return
             
         self.server_thread = None
-        self.context = None
+        self.server = None
+        self._loop = None
+        self.unit_id = 1
         self.tag_register_map = {}  # Maps tag names to register addresses
         self.register_tag_map = {}  # Maps register addresses to tag info
         self.next_register = 0
@@ -2081,11 +2094,12 @@ class ModbusTCPPublisher(DataPublisher):
             else:
                 self.logger.info("MODBUS TCP publisher is disabled")
             return
-        
+
         try:
             host = self.config.get("host", "0.0.0.0")
             port = self.config.get("port", 502)
-            
+            self.unit_id = int(self.config.get("unit_id", 1))
+
             # Initialize register mapping from config
             register_mapping = self.config.get("register_mapping", {})
             for tag_name, mapping in register_mapping.items():
@@ -2100,54 +2114,80 @@ class ModbusTCPPublisher(DataPublisher):
                         "type": tag_type
                     }
                     self.next_register = max(self.next_register, start_reg + num_regs)
-            
-            # Create MODBUS datastore (65536 registers, initialized to 0)
-            store = ModbusSlaveContext(
-                di=ModbusSequentialDataBlock(0, [0] * 65536),  # Discrete Inputs
-                co=ModbusSequentialDataBlock(0, [0] * 65536),  # Coils
-                hr=ModbusSequentialDataBlock(0, [0] * 65536),  # Holding Registers
-                ir=ModbusSequentialDataBlock(0, [0] * 65536)   # Input Registers
-            )
-            
-            self.context = ModbusServerContext(slaves=store, single=True)
-            
-            # Setup device identification
+
+            # Device identification
             identity = ModbusDeviceIdentification()
             identity.VendorName = 'OPC UA Gateway'
             identity.ProductCode = 'OPCUA-MB'
-            identity.VendorUrl = 'https://github.com/yourrepo'
+            identity.VendorUrl = 'https://github.com/Embernet-ai/Emberburn'
             identity.ProductName = 'OPC UA to MODBUS Bridge'
             identity.ModelName = 'MODBUS TCP Server'
             identity.MajorMinorRevision = '1.0.0'
-            
-            # Start server in separate thread
+
+            # One device, 65535 registers (addresses 0 to 65534) initialised to 0. The
+            # registers are shared: holding registers, input registers and coils all
+            # read the same cells.
+            device = SimDevice(
+                self.unit_id,
+                simdata=[SimData(0, count=65535, values=0, datatype=DataType.REGISTERS)],
+                identity=identity,
+            )
+
+            ready = threading.Event()
+            failure: list = []
+
             def run_server():
-                StartTcpServer(
-                    context=self.context,
-                    identity=identity,
-                    address=(host, port),
-                    allow_reuse_address=True
-                )
-            
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                self._loop = loop
+
+                async def serve():
+                    self.server = ModbusTcpServer(device, address=(host, port))
+                    task = asyncio.ensure_future(self.server.serve_forever())
+                    for _ in range(100):
+                        if self.server.is_active():
+                            break
+                        if task.done():
+                            task.result()
+                        await asyncio.sleep(0.05)
+                    ready.set()
+                    await task
+
+                try:
+                    loop.run_until_complete(serve())
+                except Exception as exc:  # port in use, bad address: say so instead of dying silently
+                    failure.append(exc)
+                    ready.set()
+                finally:
+                    loop.close()
+
             self.server_thread = threading.Thread(target=run_server, daemon=True)
             self.server_thread.start()
+            ready.wait(10)
+            if failure:
+                raise failure[0]
+            if self.server is None or not self.server.is_active():
+                raise RuntimeError(f"the server did not start listening on {host}:{port}")
             self.running = True
-            
-            self.logger.info(f"MODBUS TCP server started on {host}:{port}")
+
+            self.logger.info(f"MODBUS TCP server started on {host}:{port} (unit {self.unit_id})")
             self.logger.info(f"Allocated {self.next_register} MODBUS registers")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to start MODBUS TCP publisher: {e}")
             self.running = False
-    
+
     def stop(self):
         """Stop the MODBUS TCP server."""
         if self.running:
-            # pymodbus server doesn't have clean shutdown in thread mode
-            # Server will stop when daemon thread terminates
             self.running = False
+            if self._loop is not None and self.server is not None:
+                try:
+                    asyncio.run_coroutine_threadsafe(self.server.shutdown(), self._loop).result(5)
+                except Exception as exc:
+                    self.logger.debug(f"MODBUS TCP shutdown: {exc}")
             self.logger.info("MODBUS TCP publisher stopped")
-    
+
     def value_to_registers(self, value: Any, tag_type: str) -> list:
         """
         Convert a value to MODBUS register values.
@@ -2229,11 +2269,11 @@ class ModbusTCPPublisher(DataPublisher):
             # Convert value to register values
             register_values = self.value_to_registers(value, tag_type)
             
-            # Update holding registers in the datastore
-            slave_context = self.context[0]
-            for i, reg_value in enumerate(register_values):
-                slave_context.setValues(3, start_register + i, [reg_value])  # Function code 3 = holding registers
-            
+            # Update the registers in the datastore (function code 3 addresses the
+            # shared register cells; the server's own loop applies the write)
+            asyncio.run_coroutine_threadsafe(
+                self.server.async_setValues(self.unit_id, 3, start_register, register_values), self._loop)
+
             self.logger.debug(f"Updated MODBUS registers {start_register}-{start_register + len(register_values) - 1}: {tag_name} = {value}")
             
         except Exception as e:

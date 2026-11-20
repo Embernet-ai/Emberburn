@@ -91,6 +91,45 @@ def check_master_role():
     return True
 
 
+def check_link_order():
+    """The master waits for the ACK to its Reset of Remote Link before it sends its first
+    request. A stand-in outstation holds the ACK back for 0.5 s and counts any byte that
+    arrives meanwhile: a master that sends the first Read straight after the reset (as
+    dnp3py's own runner does) puts the Read on the wire before the ACK, and the Read is
+    the byte this check catches."""
+    import socket
+    from dnp3.datalink.builder import build_ack
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", PORT + 3))
+    srv.listen(1)
+    srv.settimeout(15)
+    mst = DNP3MasterPublisher({"enabled": True, "host": "127.0.0.1", "port": PORT + 3, "address": 1,
+                               "outstation_address": 10, "interval": 60})
+    mst.start()
+    try:
+        conn, _ = srv.accept()
+        conn.settimeout(5)
+        first = conn.recv(4096)
+        # a link frame without user data is 10 bytes: 05 64 05 C0 dest src crc
+        assert first[:2] == b"\x05\x64" and first[2] == 5 and first[3] & 0x0F == 0 and len(first) == 10, first.hex()
+        conn.settimeout(0.5)
+        try:
+            early = conn.recv(4096)
+        except socket.timeout:
+            early = b""
+        assert early == b"", f"request sent before the ACK to the link reset: {early.hex()}"
+        conn.sendall(build_ack(1, 10, False).to_bytes())
+        conn.settimeout(5)
+        after = conn.recv(4096)
+        assert after[:2] == b"\x05\x64" and len(after) > 10, after.hex()   # now the integrity poll
+        conn.close()
+    finally:
+        mst.stop()
+        srv.close()
+    return True
+
+
 def check_manager():
     import publishers
     mgr = publishers.PublisherManager({"publishers": {"dnp3": {"enabled": True, "port": PORT + 2}}})
@@ -101,7 +140,7 @@ def check_manager():
 
 def main():
     results = []
-    for name, fn in (("integrity poll, class 1 event, controls", check_wire), ("master role", check_master_role), ("publisher manager wiring", check_manager)):
+    for name, fn in (("integrity poll, class 1 event, controls", check_wire), ("master role", check_master_role), ("master waits for the link reset ACK", check_link_order), ("publisher manager wiring", check_manager)):
         try:
             results.append((name, bool(fn()), ""))
         except Exception:

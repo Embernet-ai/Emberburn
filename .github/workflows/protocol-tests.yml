@@ -11,6 +11,7 @@ on:
       - 'protocols/**'
       - 'publishers.py'
       - 'test_enip.py'
+      - 'test_modbus.py'
       - 'test_s7.py'
       - 'test_bacnet.py'
       - 'test_dnp3.py'
@@ -25,6 +26,7 @@ on:
       - 'protocols/**'
       - 'publishers.py'
       - 'test_enip.py'
+      - 'test_modbus.py'
       - 'test_s7.py'
       - 'test_bacnet.py'
       - 'test_dnp3.py'
@@ -70,7 +72,7 @@ jobs:
         run: |
           set -o pipefail
           python test_dnp3.py | tee /tmp/dnp3.log
-          grep -q '^3/3$' /tmp/dnp3.log
+          grep -q '^4/4$' /tmp/dnp3.log
       - name: IEC 60870-5-104
         run: |
           set -o pipefail
@@ -83,3 +85,8 @@ jobs:
             sudo -E env "PATH=$PATH" python $t.py | tee /tmp/$t.log
             grep -q '^2/2$' /tmp/$t.log
           done
+      - name: Modbus TCP
+        run: |
+          set -o pipefail
+          python test_modbus.py | tee /tmp/modbus.log
+          grep -q '^1/1$' /tmp/modbus.log
