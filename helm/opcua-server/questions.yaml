@@ -206,6 +206,26 @@ questions:
       type: string
       default: "industrial/emberburn"
 
+- variable: config.publishers.ethernet_ip.enabled
+  label: Enable EtherNet/IP and CIP
+  description: "Serve the tags as a Logix style EtherNet/IP controller (TCP and UDP 44818, implicit I/O on UDP 2222) for protocol analyzer and intrusion detection testing"
+  type: boolean
+  default: false
+  group: "Protocols"
+  show_subquestion_if: true
+  subquestions:
+    - variable: config.publishers.ethernet_ip.port
+      label: EtherNet/IP Port
+      description: "TCP and UDP port for explicit messaging and ListIdentity"
+      type: int
+      default: 44818
+
+    - variable: config.publishers.ethernet_ip.io_port
+      label: Implicit I/O UDP Port
+      description: "UDP port for class 1 implicit I/O"
+      type: int
+      default: 2222
+
 - variable: config.publishers.influxdb.enabled
   label: Enable InfluxDB Storage
   description: "Store historical data in InfluxDB"

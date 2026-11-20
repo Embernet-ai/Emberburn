@@ -7,11 +7,12 @@ description: |
   EmberBurn serves OPC UA and pushes the same data out over MQTT, Sparkplug B,
   Kafka, AMQP, WebSocket, Modbus TCP, InfluxDB, GraphQL, a REST API, an OPC UA
   client, and a Prometheus endpoint. Alarms, SQLite persistence, and data
-  transformation ride on top of those.
+  transformation ride on top of those. It can also serve the tags as an
+  EtherNet/IP controller, for protocol analyzer and intrusion detection testing.
 
 type: application
-version: 4.4.30
-appVersion: "4.4.30"
+version: 4.5.0
+appVersion: "4.5.0"
 
 keywords:
   - opcua
@@ -57,7 +58,7 @@ annotations:
   catalog.cattle.io/featured: "true"
 
   # Documentation links
-  catalog.cattle.io/upstream-version: "4.4.30"
+  catalog.cattle.io/upstream-version: "4.5.0"
   fireball.industries/project-type: "industrial-iot-gateway"
   fireball.industries/protocols: "12"
   fireball.industries/web-ui: "true"

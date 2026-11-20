@@ -1,0 +1,35 @@
+{{- $otPorts := include "emberburn.otPorts" . | fromJsonArray }}
+{{- if $otPorts }}
+# Simulated OT protocol endpoints (EtherNet/IP and the others enabled under
+# config.publishers). One Service so a client, an analyzer or an intrusion
+# detection sensor inside the cluster can reach every enabled protocol by name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "emberburn.labels" . | nindent 4 }}
+    service-type: ot-protocols
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.tenantLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.service.ot.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.ot.type }}
+  ports:
+  {{- range $otPorts }}
+  - name: {{ .name }}
+    port: {{ .port }}
+    targetPort: {{ .name }}
+    protocol: {{ .protocol }}
+  {{- end }}
+  selector:
+    {{- include "emberburn.selectorLabels" . | nindent 4 }}
+{{- end }}

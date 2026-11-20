@@ -12,9 +12,23 @@ spec:
       {{- include "emberburn.selectorLabels" . | nindent 6 }}
   policyTypes:
     {{- toYaml .Values.networkPolicy.policyTypes | nindent 4 }}
-  {{- if .Values.networkPolicy.ingress }}
+  {{- $otPorts := include "emberburn.otPorts" . | fromJsonArray }}
+  {{- if or .Values.networkPolicy.ingress $otPorts }}
   ingress:
-    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
+    {{- with .Values.networkPolicy.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $otPorts }}
+    # Simulated OT protocols that are enabled: without this, turning the policy
+    # on would cut them off while the pod still reported healthy.
+    - from:
+        - namespaceSelector: {}
+      ports:
+      {{- range $otPorts }}
+        - protocol: {{ .protocol }}
+          port: {{ .port }}
+      {{- end }}
+    {{- end }}
   {{- end }}
   {{- if .Values.networkPolicy.egress }}
   egress:

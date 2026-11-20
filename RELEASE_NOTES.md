@@ -3,6 +3,12 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.4.30, 2026-10-22
+
+The chart's maintainer is `patrick@fireballz.ai`. `Chart.yaml` carried the old
+`fireball-industries.com` address, and so did every published version in the
+index; this release publishes the new one. No application code changed.
+
 ## v4.4.29, 2026-09-28
 
 The pod's scrape annotation said port 8000, where nothing listens, so annotation

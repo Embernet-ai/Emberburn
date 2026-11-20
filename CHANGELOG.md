@@ -5,6 +5,23 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-11-20: EtherNet/IP
+
+### Added
+
+- **EmberBurn serves its tags over EtherNet/IP and CIP.** Enable
+  `publishers.ethernet_ip` and it is a Logix style controller on TCP and UDP
+  44818: tag read and write, tag browse, the STRING template, identity,
+  ListIdentity, Forward Open, connected messaging, and implicit I/O on UDP 2222
+  from Assembly 100 and 101. It is test and demo traffic for protocol analyzers,
+  intrusion detection and clients. Verified with pycomm3 and decoded by tshark
+  with no malformed frame. See `docs/OT_PROTOCOLS.md`, which also lists the
+  protocols still to come.
+- **The chart carries it.** Enabling the publisher adds its container ports and
+  a `<release>-ot` Service; the optional NetworkPolicy opens the same ports.
+- `protocols/`, the package the next protocols land in, and the publisher list
+  gets a card for each one that is enabled.
+
 ## [4.4.30] - 2026-10-22: The Chart Lists My Work Address
 
 ### Changed
