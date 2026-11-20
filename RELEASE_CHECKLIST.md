@@ -230,37 +230,42 @@ Manual fallback (only if CI is broken):
 > and Emberburn stands alone. If a clone still has an `upstream` remote, remove it
 > (`git remote remove upstream`).
 
-**Order matters, and it is not the order this section used to give.** The tag must
-be pushed and the image must finish building *before* the chart bump reaches `main`,
-because `release.yml` publishes the chart on push-to-main while `docker-publish.yml`
-only builds on a `v*` tag. Pushing `main --tags` in one shot races them and can
-publish a chart referencing an image that does not exist yet, that is what the
-v4.0.9 ImagePullBackOff was. `release.yml` now hard-fails in that case rather than
-shipping it, so getting this wrong costs you a red build instead of a broken deploy.
+**Order matters.** Emberburn is a public repo, so it lands by the house rule: a
+PR from the release branch, every check green, then a squash merge. The tag goes
+on the squashed commit on `main`, because a squash writes a new sha and a tag
+on the branch commit would never sit on main. `release.yml` publishes the chart on
+push to `main` and `docker-publish.yml` builds the image only on a `v*` tag, so
+the chart can briefly name an image that does not exist yet. `release.yml`
+hard-fails in that case rather than shipping it (the v4.0.9 ImagePullBackOff), so
+if it goes red between the merge and the tag build, push the tag and let the
+chart job re-run once the image is in GHCR.
 
 ```bash
-# 1. commit on a release branch, not directly on main
+# 1. branch, commit, push, open the PR
 git checkout -b release/vX.Y.Z
-git add .
+git add <your paths>
 git commit -m "vX.Y.Z: <short description>"
 git push -u origin release/vX.Y.Z
+gh pr create --base main --head release/vX.Y.Z
 
-# 2. tag it — this and only this triggers the multi-arch image build
+# 2. all checks green (read the rollup), then squash under the work address
+gh pr merge <n> --squash --author-email patrick@fireballz.ai \
+  --subject "vX.Y.Z: <short description>" --body "<why>"
+
+# 3. tag the squashed commit on main; this and only this builds the image
+git checkout main && git pull --ff-only origin main
 git tag -a vX.Y.Z -m "EmberBurn X.Y.Z - <short description>"
 git push origin vX.Y.Z
 
-# 3. WAIT for docker-publish.yml to finish (~6 min), then confirm the image exists
+# 4. WAIT for docker-publish.yml (~6 min), then confirm the image exists
 gh run list -R Embernet-ai/Emberburn --limit 1
 docker manifest inspect ghcr.io/embernet-ai/emberburn:X.Y.Z
-
-# 4. only now merge to main — this triggers the chart publish
-git checkout main && git merge --ff-only release/vX.Y.Z && git push origin main
 ```
 
-- [ ] Committed on a `release/vX.Y.Z` branch
-- [ ] Tagged `vX.Y.Z` and pushed the tag
+- [ ] Committed on a `release/vX.Y.Z` branch, PR open on the **org** repo (`Embernet-ai/Emberburn`)
+- [ ] Every check on the PR green, squash merged to `main`
+- [ ] Tagged `vX.Y.Z` on the squashed `main` commit and pushed the tag
 - [ ] **Image build finished and image confirmed present in GHCR**
-- [ ] Merged to `main` on the **org** repo (`Embernet-ai/Emberburn`)
 
 ---
 
