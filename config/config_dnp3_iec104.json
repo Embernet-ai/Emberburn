@@ -1,0 +1,13 @@
+{
+  "tags": {
+    "Temperature": { "type": "float", "initial_value": 20.0, "simulate": true, "simulation_type": "random", "min": 15.0, "max": 25.0 },
+    "Pressure": { "type": "float", "initial_value": 101.3, "simulate": true, "simulation_type": "random", "min": 99.0, "max": 103.0 },
+    "Counter": { "type": "int", "initial_value": 0, "simulate": true, "simulation_type": "increment", "increment": 1, "max": 1000, "reset_on_max": true },
+    "IsRunning": { "type": "bool", "initial_value": true, "simulate": false }
+  },
+  "publishers": {
+    "rest_api": { "enabled": true, "host": "0.0.0.0", "port": 5000 },
+    "dnp3": { "enabled": true, "port": 20000, "address": 10, "analog_scale": 100 },
+    "iec104": { "enabled": true, "port": 2404, "common_address": 1 }
+  }
+}

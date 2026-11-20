@@ -16,9 +16,12 @@ enabled.
 | EtherNet/IP and CIP | `ethernet_ip_client` | client (writes tags to, and polls tags from, a controller) | outbound to the target's 44818 | 4.5.0 |
 | S7comm | `s7comm` | server (Siemens S7 CPU, tags in data blocks) | TCP 102 | 4.6.0 |
 | BACnet/IP | `bacnet` | server (one device, one object per tag) | UDP 47808 | 4.6.0 |
+| DNP3 | `dnp3` | server (outstation) | TCP 20000 | 4.7.0 |
+| DNP3 | `dnp3_master` | client (polling master) | outbound to the outstation's 20000 | 4.7.0 |
+| IEC 60870-5-104 | `iec104` | server (controlled station) | TCP 2404 | 4.7.0 |
+| IEC 60870-5-104 | `iec104_master` | client (controlling station) | outbound to the station's 2404 | 4.7.0 |
 
-The slices still to come, in this order: DNP3, IEC 60870-5-104,
-then PROFINET (DCP, RT and IO-CM), EtherCAT, Omron FINS, GE SRTP, HART-IP, IEC 61850
+The slices still to come, in this order: PROFINET (DCP, RT and IO-CM), EtherCAT, Omron FINS, GE SRTP, HART-IP, IEC 61850
 (MMS and GOOSE), C37.118, and Modbus RTU over TCP. Layer 2 protocols (PROFINET
 DCP and RT, EtherCAT, GOOSE) need raw sockets, so the container and chart will
 carry `NET_RAW` for them when they ship.
@@ -122,6 +125,8 @@ pip install pycomm3
 python test_enip.py     # 4/4
 pip install python-snap7 && python test_s7.py     # 2/2
 pip install bacpypes3 && python test_bacnet.py    # 2/2
+pip install dnp3py && python test_dnp3.py         # 3/3
+python test_iec104.py                             # 4/4
 ```
 
 ## S7comm
@@ -172,6 +177,67 @@ Not simulated: COV subscriptions, alarms and events, schedules, trend logs,
 BACnet/SC, and routing between networks. `test_bacnet.py` is the check: a
 bacpypes3 client discovers the device, reads the object list and each object
 type, sees a live change and writes.
+
+## DNP3
+
+```json
+"dnp3": { "enabled": true, "port": 20000, "address": 10, "master_address": 0,
+          "analog_scale": 100, "analog_deadband": 0.5,
+          "tag_mapping": { "Count": { "type": "counter" }, "Valve": { "type": "binary_output" },
+                           "Setpoint": { "type": "analog_output", "scale": 10 },
+                           "Temperature": { "class": 2, "index": 4 } } }
+```
+
+One outstation. A float or int tag is an Analog Input (group 30), a bool a Binary
+Input (group 1); `tag_mapping` types are `binary_input`, `analog_input`,
+`counter`, `binary_output` and `analog_output`, with `index`, `class` (1, 2 or 3)
+and `deadband`. A change beyond the deadband is a change event in its class, read
+by a class poll. Outputs take select-before-operate and direct operate (CROB, group
+12, and analog output, group 41) and the control writes the tag; a control to a
+point that is not an output is refused.
+
+Analog values go out as 32-bit integers (dnp3py serves g30v1 and g40v2), so a
+float is sent as value times `scale` (100 by default, two decimals); the master
+divides it back out, as it does with a real RTU. `dnp3_master` is the polling side:
+`{"host": "...", "port": 20000, "address": 1, "outstation_address": 10,
+"interval": 5}` does an integrity poll and a class poll every interval and keeps
+what it reads. It sends no control.
+
+The stack is dnp3py (MIT, pure Python, IEEE 1815-2012 Level 2). Not simulated:
+secure authentication, file transfer, double-bit inputs, serial or UDP transport.
+`test_dnp3.py` is the check (integrity poll, class 1 event, controls, the master
+role).
+
+## IEC 60870-5-104
+
+```json
+"iec104": { "enabled": true, "port": 2404, "common_address": 1, "deadband": 0.5,
+            "cyclic_seconds": 0, "select_before_operate": false,
+            "tag_mapping": { "Count": { "type": "counter" },
+                             "Valve": { "type": "command" }, "Temperature": { "ioa": 3100 } } }
+```
+
+A controlled station. A bool tag is M_SP_NA_1 (IOA from 1), an int tag M_ME_NB_1
+scaled (from 2001), a float tag M_ME_NC_1 short float (from 3001), a `counter`
+M_IT_NA_1 (from 4001); a `command` tag is also controllable (from 5001): a bool by
+C_SC_NA_1, a float by C_SE_NC_1, an int by C_SE_NB_1, with select and execute, and
+the command writes the tag. It does STARTDT, STOPDT and TESTFR, answers station
+interrogation (COT 20) and counter interrogation (COT 37), reports changes
+spontaneously (COT 3) with CP56Time2a time tags once data transfer is started,
+optionally reports cyclically (COT 1), confirms clock synchronisation, test and
+reset process commands, and answers an unknown type, common address or IOA with the
+negative confirmations (COT 44, 46 and 47). Flow control follows k=12 and w=8, and
+an idle link is probed after t3 (20 s). `iec104_master` is the controlling
+station: it does STARTDT, a station and a counter interrogation every `interval`,
+and with `tag_map` sends a tag's value to an IOA as a command.
+
+There is no permissive library for this protocol (the Python ones are GPLv3), so it
+is written from IEC 60870-5-104 and IEC 60870-5-101 (the standard's sections are
+named in `protocols/iec104.py`). `test_iec104.py` uses a hand written raw client
+that does not import the simulator's codec, starting from the byte sequences in the
+standard's examples. Not simulated: double-point and step position information,
+bitstrings, file transfer, parameter commands, TLS (IEC 62351-3), and the t1
+timeout on a silent peer.
 
 ### Standards and sources
 

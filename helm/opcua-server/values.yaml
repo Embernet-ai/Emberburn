@@ -36,7 +36,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.6.0"
+    tag: "4.7.0"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
@@ -296,6 +296,26 @@ config:
       prefix: 24
       device_instance: 1234
       device_name: "EmberBurn"
+
+    # DNP3: one outstation, TCP 20000. Analog inputs go out as 32 bit integers
+    # scaled by analog_scale (100 = two decimals), the way dnp3py serves them.
+    dnp3:
+      enabled: false
+      host: "0.0.0.0"
+      port: 20000
+      address: 10
+      master_address: 0
+      analog_scale: 100
+      analog_deadband: 0.5
+
+    # IEC 60870-5-104: a controlled station, TCP 2404.
+    iec104:
+      enabled: false
+      host: "0.0.0.0"
+      port: 2404
+      common_address: 1
+      deadband: 0.5
+      cyclic_seconds: 0
 
     # GraphQL API
     graphql:

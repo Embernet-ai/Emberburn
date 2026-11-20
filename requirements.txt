@@ -54,3 +54,7 @@ python-snap7>=3.6.0,<4.0.0
 # BACnet/IP simulator (protocols/bacnet.py): BVLL, NPDU, APDU and the object
 # model. MIT per its package metadata.
 bacpypes3>=0.1.0,<0.2.0
+# DNP3 simulator (protocols/dnp3.py, dnp3_master.py): the IEEE 1815-2012 stack. MIT,
+# pure Python, needs Python 3.11 or newer. IEC 60870-5-104 (protocols/iec104.py) needs
+# no library: the Python libraries for it are GPLv3, so it is written from the standard.
+dnp3py>=0.6.0,<0.7.0

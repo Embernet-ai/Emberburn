@@ -15,6 +15,8 @@ const PROTOCOL_ICONS = {
     'EtherNet/IP': '🏭',
     'S7comm': '🏭',
     'BACnet/IP': '🏢',
+    'DNP3': '⚡',
+    'IEC 104': '⚡',
     'EtherNet/IP Client': '🏭',
     'OPC UA Client': '🔗',
     'Alarms': '🚨',

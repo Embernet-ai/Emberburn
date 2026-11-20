@@ -32,7 +32,7 @@ RUN useradd -m -u 1000 emberburn && \
 # Switch to non-root user
 USER emberburn
 
-EXPOSE 4840 5000 8000 44818/tcp 44818/udp 2222/udp 102/tcp 47808/udp
+EXPOSE 4840 5000 8000 44818/tcp 44818/udp 2222/udp 102/tcp 47808/udp 20000/tcp 2404/tcp
 
 ENV PYTHONUNBUFFERED=1 \
     UPDATE_INTERVAL=2.0 \
