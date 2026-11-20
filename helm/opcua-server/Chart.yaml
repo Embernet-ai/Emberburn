@@ -13,8 +13,8 @@ description: |
   intrusion detection testing.
 
 type: application
-version: 4.8.0
-appVersion: "4.8.0"
+version: 4.8.1
+appVersion: "4.8.1"
 
 keywords:
   - opcua
@@ -60,7 +60,7 @@ annotations:
   catalog.cattle.io/featured: "true"
 
   # Documentation links
-  catalog.cattle.io/upstream-version: "4.8.0"
+  catalog.cattle.io/upstream-version: "4.8.1"
   fireball.industries/project-type: "industrial-iot-gateway"
   fireball.industries/protocols: "12"
   fireball.industries/web-ui: "true"

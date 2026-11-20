@@ -57,6 +57,7 @@ class DNP3Publisher(SimProtocolPublisher):
         self.by_point: Dict[Tuple[str, int], str] = {}   # (kind, index) -> tag
         self._next = {k: 0 for k in KINDS}
         self.overrides: Dict[str, Any] = config.get("tag_mapping", {}) or {}
+        self._no_point = set()                           # string tags: DNP3 has no point type for them
 
     # lifecycle -------------------------------------------------------------
     def start(self):
@@ -164,6 +165,13 @@ class DNP3Publisher(SimProtocolPublisher):
         return kind, index
 
     def _apply(self, tag: str, value: Any):
+        # DNP3 points are numbers and booleans. A string tag has no point, so it is left out once, with one line
+        # saying so, and not tried again on every scan (it used to log "could not convert string to float" each cycle).
+        if isinstance(value, str):
+            if tag not in self._no_point:
+                self._no_point.add(tag)
+                self.logger.info(f"DNP3 has no point type for the string tag {tag}; it is not served")
+            return
         try:
             if tag not in self.points:
                 self._add_point(tag, value)
