@@ -30,6 +30,10 @@ metadata:
     {{- if .Values.embernet.displayName }}
     embernet.ai/display-name: {{ .Values.embernet.displayName | quote }}
     {{- end }}
+    {{- if include "emberburn.signinOn" . }}
+    # Tells the dashboard's app host to send this app its signed assertion.
+    embernet.ai/signin: assertion
+    {{- end }}
     {{- if .Values.flux.expose }}
     flux.embernet.ai/expose: "true"
     flux.embernet.ai/service-name: {{ .Values.flux.serviceName | default .Release.Name | quote }}

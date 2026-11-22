@@ -131,6 +131,18 @@ spec:
           API server. The metrics Service reaches it by port number instead.
         */}}
         env:
+        {{- if include "emberburn.signinOn" . }}
+        # EmberCORE sign-in: the dashboard's PUBLIC key (the private half never
+        # leaves the dashboard), and the one app this chart's tokens are for.
+        - name: EMBERNET_SIGNIN_PUBLIC_KEY
+          value: {{ .Values.embernetSignin.publicKey | quote }}
+        - name: EMBERNET_SIGNIN_AUDIENCE
+          value: {{ include "emberburn.signinAudience" . | quote }}
+        - name: EMBERNET_SIGNIN_ISSUER
+          value: {{ .Values.embernetSignin.issuer | default "embernet-dashboard" | quote }}
+        - name: EMBERNET_SIGNIN_HEADER
+          value: {{ .Values.embernetSignin.header | default "X-Embernet-Assertion" | quote }}
+        {{- end }}
         {{- /*
           Sparkplug broker credentials come from a Secret, never the ConfigMap.
           publishers.py prefers EMBERBURN_SPARKPLUG_* over its config file, so
