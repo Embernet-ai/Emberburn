@@ -9,17 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The dashboard decides who can write from the web UI.** When the App Store hands
-  the pod the dashboard's public key, the UI is given the write token only for a
-  person the dashboard's signed assertion (X-Embernet-Assertion, ES256, about a
-  minute, made for this one app) says may write: the role their tenant maps their
-  dashboard role to, `write` or `read`. Everyone else sees a read-only UI, and a
-  write token an earlier person left in the browser is cleared. A forged, expired,
-  wrong-app, wrong-issuer, alg none or over-long-lived token is the same as none.
-  Automation holding `EMBERBURN_API_KEY` writes as it always did, and with no key
-  configured the pod is exactly what it was. New `embernet_signin.py`,
-  `test_signin.py`, and the chart's `embernetSignin` values, env and Service
-  annotation `embernet.ai/signin: assertion`.
+- **Open EmberBurn from EmberCORE and your tenant's role decides what you can do.**
+  Admins and Engineers can change tags in the web UI; Operators and Viewers see
+  everything live, read-only. Sign-in is automatic, with nothing to type.
 
 ## [4.8.1] - 2026-11-20: DNP3 Skips String Tags
 
