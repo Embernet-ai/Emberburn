@@ -36,7 +36,7 @@ pod:
 emberburn:
   image:
     repository: ghcr.io/embernet-ai/emberburn
-    tag: "4.8.1"
+    tag: "4.9.0"
     pullPolicy: IfNotPresent # Use Always for development, IfNotPresent for production
 
   # OPC UA Server configuration
@@ -688,3 +688,20 @@ tenantLabels: {}
 #  embernet.ai/tenant: "tranetech-ut3"
 #  embernet.ai/deployed-by: "patrick@fireballz.ai"
 #  embernet.ai/deployment-id: "abc123"
+
+# ── EmberCORE sign-in ────────────────────────────────────────────────────────
+# The App Store passes the dashboard's public key here. With it set, the web UI
+# is handed the write token only for a person the dashboard's signed assertion
+# says may write (the role the tenant maps their dashboard role to: write or
+# read); everyone else sees a read-only UI. Automation that holds
+# EMBERBURN_API_KEY writes as it always did. With no key nothing changes.
+embernetSignin:
+  driver: ""          # "assertion" when the dashboard signs people in
+  publicKey: ""       # PKIX PEM, the dashboard's ES256 public key
+  algorithm: ES256
+  header: X-Embernet-Assertion
+  issuer: embernet-dashboard
+  # The audience a token must name, <tenant>/<this Service>. Worked out from the
+  # namespace (tenant-<id>) and the release name; set it only when the release is
+  # not in a tenant-<id> namespace and carries no tenant label.
+  audience: ""

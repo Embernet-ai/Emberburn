@@ -5,6 +5,14 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.0] - 2026-11-22: EmberCORE Sign-In
+
+### Added
+
+- **Open EmberBurn from EmberCORE and your tenant's role decides what you can do.**
+  Admins and Engineers can change tags in the web UI; Operators and Viewers see
+  everything live, read-only. Sign-in is automatic, with nothing to type.
+
 ## [4.8.1] - 2026-11-20: DNP3 Skips String Tags
 
 ### Fixed

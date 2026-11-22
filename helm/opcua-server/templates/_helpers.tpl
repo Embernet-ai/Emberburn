@@ -220,3 +220,32 @@ only while one of these is enabled. See docs/OT_PROTOCOLS.md.
 {{- end }}
 {{- if $raw }}true{{- end -}}
 {{- end -}}
+
+{{/*
+EmberCORE sign-in (embernet_signin.py in the image). On only when the store hands
+over the dashboard's public key. The web UI is then handed the write token only
+for a person the dashboard's signed assertion says may write; without the key
+the pod is exactly what it was.
+*/}}
+{{- define "emberburn.signinOn" -}}
+{{- if and .Values.embernetSignin .Values.embernetSignin.publicKey -}}true{{- end -}}
+{{- end }}
+
+{{/*
+The audience a token has to carry: <tenant>/<Service name>, the string the
+dashboard signs (the tenant comes from the tenant-<id> namespace; the Service is
+named for the release). A token made for one app opens no other. No audience is
+a render error: a check quietly off is worse than a chart that will not render.
+*/}}
+{{- define "emberburn.signinAudience" -}}
+{{- $s := .Values.embernetSignin -}}
+{{- if $s.audience -}}
+{{- $s.audience -}}
+{{- else if hasPrefix "tenant-" .Release.Namespace -}}
+{{- printf "%s/%s" (trimPrefix "tenant-" .Release.Namespace) .Release.Name -}}
+{{- else if (index (.Values.tenantLabels | default dict) "embernet.ai/tenant") -}}
+{{- printf "%s/%s" (index .Values.tenantLabels "embernet.ai/tenant" | toString | lower) .Release.Name -}}
+{{- else -}}
+{{- fail "embernetSignin.publicKey is set but the audience can't be worked out: the release is not in a tenant-<id> namespace and has no embernet.ai/tenant label; set embernetSignin.audience to <tenant>/<service>" -}}
+{{- end -}}
+{{- end }}

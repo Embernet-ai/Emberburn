@@ -24,6 +24,7 @@ from flask import Flask, jsonify, request
 from urllib.parse import quote
 from flask_cors import CORS
 
+import embernet_signin
 import protocols
 from version import __version__
 
@@ -1126,6 +1127,15 @@ class RESTAPIPublisher(DataPublisher):
         if not self.ui_writes_enabled:
             self.logger.info("UI writes disabled — web UI is read-only")
 
+        # EmberCORE sign-in (embernet_signin.py). With the dashboard's public key
+        # configured, the UI is handed the write token only when the dashboard
+        # vouches, in its signed assertion, for a person who may write. Without
+        # the key nothing changes. A key that cannot be read is a startup error:
+        # a check that is quietly off is worse than a pod that will not start.
+        self.signin = embernet_signin.from_env()
+        if self.signin:
+            self.logger.info("EmberCORE sign-in on: the UI writes only for a person the dashboard says may")
+
         @self.app.before_request
         def require_write_token():
             if request.method not in self._MUTATING_METHODS:
@@ -1158,6 +1168,13 @@ class RESTAPIPublisher(DataPublisher):
             if not self.ui_writes_enabled:
                 return response
             if not response.content_type or 'text/html' not in response.content_type:
+                return response
+
+            if self.signin and not self.signin.may_write(request.headers.get(self.signin.header, '')):
+                # No good assertion for a writer: read-only, and no token left in
+                # the browser by an earlier person who could write.
+                if request.cookies.get('emberburn_write_token'):
+                    response.delete_cookie('emberburn_write_token')
                 return response
 
             response.set_cookie(
