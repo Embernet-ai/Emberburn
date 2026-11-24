@@ -5,6 +5,12 @@ All notable changes to EmberBurn Industrial IoT Gateway will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.1] - 2026-11-24: The Official Emberburn Mark
+
+### Changed
+
+- **Emberburn has its own mark.** The web UI header, the favicon, the Rancher catalog tile and the EmberCORE app tile now show the Emberburn signal flame, where they showed the EmberNet comet. The full asset set (SVG, PNG sizes, favicon, wordmark) is in `branding/`.
+
 ## [4.9.0] - 2026-11-22: EmberCORE Sign-In
 
 ### Added
