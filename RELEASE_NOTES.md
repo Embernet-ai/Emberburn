@@ -3,6 +3,14 @@
 > These notes lag one version behind by design (RELEASE_CHECKLIST.md §7): they
 > record what has shipped, and the version sitting in the working tree has not.
 
+## v4.9.0, 2026-11-22
+
+EmberBurn signs in through EmberCORE. When you open it from EmberCORE, your tenant role decides what you can do: Admins and Engineers change tags in the web UI, and Operators and Viewers see everything live but read-only. There is nothing to type. This release also carries 4.8.1.
+
+## v4.8.1 (merged, never tagged, first shipped in 4.9.0)
+
+A string tag no longer floods the DNP3 log. DNP3 has no point type for a string, so every publish of one raised a conversion error. The publisher now notes the tag once and does not serve it.
+
 ## v4.8.0, 2026-11-20
 
 The Modbus publisher starts again on pymodbus 3.16, and the DNP3 master waits for
