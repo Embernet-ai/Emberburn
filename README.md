@@ -5,6 +5,8 @@
 >
 > *"I started building a simple OPC UA server. I blacked out. When I came to, it supported 15 protocols and had a web UI. I regret nothing."*
 
+Part of [EmberNet](https://embernet.ai), the complete industrial edge platform.
+
 ---
 
 Look, you clicked on this repo, so either you're into industrial automation, you Googled something cursed, or GitHub's algorithm finally snapped. Either way, welcome. Buckle up. This README is the only therapy session you're getting.
