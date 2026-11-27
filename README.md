@@ -126,7 +126,7 @@ reloads them at startup, so they outlive restarts, upgrades and rescheduling.
 
 Keep the authoritative list in the site's own repo as data and push it in with a
 script. A tag list baked into a chart needs a values edit, a `helm upgrade` and
-usually a chart release to move one setpoint — that isn't a gateway, it's a
+usually a chart release to move one setpoint. That isn't a gateway, it's a
 config file with extra steps.
 
 **Writes need a token.** With no `EMBERBURN_API_KEY` configured, EmberBurn
@@ -158,7 +158,7 @@ other tag. Plants don't work like that. These do:
 | `walk` | Bounded random walk, optionally drifting | `step`, `drift_per_hour`, `min`, `max`, `reset_on_max` |
 | `thermostat` | Value pulled toward setpoint by a driver boolean, drifting to ambient when it's off | `setpoint`/`setpoint_tag`, `driver_tag`, `band`, `pull_rate`, `rise_rate`, `ambient`, `noise` |
 | `follows` | Mirrors another tag after a lag, and sometimes doesn't | `source_tag`, `lag_seconds`, `mismatch_probability`, `mismatch_seconds` |
-| `accumulate` | Integrates another tag over time — energy counters | `source_tag`, `scale`, `max`, `reset_on_max` |
+| `accumulate` | Integrates another tag over time, for energy counters | `source_tag`, `scale`, `max`, `reset_on_max` |
 | `clock` | Hour / minute / second of local time | `part` |
 | `computed` | Value from an expression over other tags | `expression`, `dependencies`, `window_seconds` |
 
@@ -166,7 +166,7 @@ Three things worth knowing:
 
 **Use `hysteresis`, not `duty_cycle`, wherever the plant has a controller.** A
 duty cycle runs to a clock regardless of the process, so its temperature settles
-wherever the cooling and warming rates happen to cancel — which is not the
+wherever the cooling and warming rates happen to cancel, which is not the
 setpoint, and wanders the moment anything perturbs it. Closing the loop is what
 makes a cold room sit at the number on its setpoint tag:
 
@@ -202,7 +202,7 @@ is a legal tag name and survives Sparkplug as a metric name, so brokers that
 expand metrics into topics rebuild the hierarchy for free.
 
 **A computed tag is just a tag with an expression.** `dependencies` maps
-expression variables to tag names, which is required for UNS paths — to
+expression variables to tag names, which is required for UNS paths. To
 `eval()`, `Power/Meter_01/CurrentA` is three divisions, not a variable. Add
 `window_seconds` for a rolling average, which is what a "15-minute demand"
 point actually is:
